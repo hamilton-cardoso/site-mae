@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Coffee, Gift, Lock, Wallet } from "lucide-react";
+import { Coffee, Gift, Wallet } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -44,15 +44,6 @@ export function Navbar() {
                 <span className="hidden sm:inline">Doar em Pix</span>
                 <span className="sm:hidden">Pix</span>
               </a>
-              <Link
-                href="/painel"
-                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-sage-800 bg-sage-100 hover:bg-sage-200 border border-sage-300/80 px-3 py-2 rounded-xl transition"
-                title="Área restrita com o totalizador de doações e presentes"
-              >
-                <Lock className="w-3.5 h-3.5 text-sage-700" />
-                <span className="hidden sm:inline">Painel da Juscélia</span>
-                <span className="sm:hidden">Painel</span>
-              </Link>
             </>
           ) : (
             <Link

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import "./globals.css";
 
@@ -15,9 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Navbar />
         <main className="flex-1">{children}</main>
         <footer className="bg-cream-100 border-t border-sage-200 py-8 mt-16">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-wrap justify-between gap-4 text-xs text-sage-700">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 text-xs text-sage-700">
             <p>Feito com carinho para o <strong>Chá de Cozinha da Juscélia</strong></p>
-            <Link href="/painel" className="underline underline-offset-4 font-semibold">Painel da Juscélia</Link>
           </div>
         </footer>
       </body>
