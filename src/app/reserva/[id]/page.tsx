@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { ReservationView } from "@/components/GuestForms";
 import { reservationTicket } from "@/server/gifts";
 import { RequestError } from "@/server/http";
+import { loadRuntimeConfig } from "@/server/runtime-config";
 
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
 
 export default async function ReservationPage({ params }: { params: Promise<{ id: string }> }) {
+  await loadRuntimeConfig();
   const { id } = await params;
   let ticket;
   try {

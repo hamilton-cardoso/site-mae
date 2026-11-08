@@ -1,0 +1,21 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm use 24
+        - npm ci
+    build:
+      commands:
+        - |
+          if [ -n "${RUNTIME_CONFIG_PARAMETER:-}" ]; then
+            printf 'RUNTIME_CONFIG_PARAMETER=%s\n' "$RUNTIME_CONFIG_PARAMETER" >> .env.production
+          fi
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*

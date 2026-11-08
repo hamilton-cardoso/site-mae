@@ -1,4 +1,5 @@
 import { CATEGORIES, type GiftCategory, type GiftInput } from "@/data/gifts";
+import { loadRuntimeConfig } from "./runtime-config";
 
 export class RequestError extends Error {
   constructor(public status: number, message: string) {
@@ -12,6 +13,7 @@ export function json(value: unknown, status = 200) {
 
 export async function handle(work: () => unknown) {
   try {
+    await loadRuntimeConfig();
     return json(await work());
   } catch (error) {
     if (error instanceof RequestError) return json({ error: error.message }, error.status);

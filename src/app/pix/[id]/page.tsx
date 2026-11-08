@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PixView } from "@/components/GuestForms";
 import { pixPage } from "@/server/payments";
+import { loadRuntimeConfig } from "@/server/runtime-config";
 
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
 
 export default async function PixPage({ params }: { params: Promise<{ id: string }> }) {
+  await loadRuntimeConfig();
   const ticket = await pixPage((await params).id);
   if (!ticket) notFound();
   return (

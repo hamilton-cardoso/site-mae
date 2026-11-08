@@ -81,3 +81,11 @@ npm run build
 Para executar `npm run test:integration`, defina `TEST_DATABASE_URL` com a URL direta da branch `dev`. O teste aplica o esquema em um namespace temporário, simula o Asaas e remove o namespace ao terminar.
 
 O recebimento real e a entrega de webhooks pelo Asaas em produção dependem da conta e da URL pública configuradas.
+
+## AWS Amplify Hosting
+
+O `amplify.yml` seleciona Node.js 24 e compila o aplicativo SSR. Na branch oficial do Amplify, defina `RUNTIME_CONFIG_PARAMETER` com o ARN de um parâmetro `SecureString` do AWS Systems Manager Parameter Store.
+
+O parâmetro deve conter um objeto JSON com `DATABASE_URL` (conexão com pool da branch oficial), `ADMIN_PASSWORD`, `ASAAS_ENV`, `ASAAS_API_KEY`, `ASAAS_PIX_KEY` e `ASAAS_WEBHOOK_TOKEN`. O papel IAM de SSR Compute precisa de `ssm:GetParameter` para esse parâmetro. O build recebe apenas o ARN e o servidor lê os valores em execução.
+
+Para aplicar o esquema em produção, use a conexão direta da branch oficial em `DATABASE_URL_UNPOOLED` com `npm run db:migrate`.
