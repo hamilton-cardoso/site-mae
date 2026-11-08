@@ -41,8 +41,7 @@ export function Navbar() {
                 className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold bg-terracotta-600 hover:bg-terracotta-700 text-white px-3.5 py-2 rounded-xl shadow-sm transition"
               >
                 <Wallet className="w-4 h-4" />
-                <span className="hidden sm:inline">Doar em Pix</span>
-                <span className="sm:hidden">Pix</span>
+                <span>Doar</span>
               </a>
             </>
           ) : (

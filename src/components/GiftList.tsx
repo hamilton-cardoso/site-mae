@@ -3,17 +3,17 @@
 import { Calendar, Gift as GiftIcon, MapPin, Search, Sparkles, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CATEGORIES, EVENT_INFO, type Gift, type GiftCategory } from "@/data/gifts";
+import { CATEGORIES, EVENT_INFO, type Gift, type GiftAction, type GiftCategory } from "@/data/gifts";
 import { FreeDonationSection } from "./FreeDonationSection";
 import { GiftActionModal } from "./GiftActionModal";
 import { GiftCard } from "./GiftCard";
 
-export function GiftList({ gifts, sandbox }: { gifts: Gift[]; sandbox: boolean }) {
+export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandbox: boolean; cardEnabled: boolean }) {
   const router = useRouter();
   const [category, setCategory] = useState<GiftCategory | "Todos">("Todos");
   const [status, setStatus] = useState("Todos");
   const [query, setQuery] = useState("");
-  const [selection, setSelection] = useState<{ gift: Gift; method: "pix" | "shop" } | null>(null);
+  const [selection, setSelection] = useState<{ gift: Gift; method: GiftAction } | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -33,7 +33,7 @@ export function GiftList({ gifts, sandbox }: { gifts: Gift[]; sandbox: boolean }
   return (
     <div className="space-y-14">
       <section className="bg-gradient-to-b from-cream-100 via-cream-50 to-cream-50 border-b border-sage-200/70">
-        {sandbox && <p className="bg-amber-100 text-amber-900 text-center py-2 text-xs font-semibold">Ambiente de teste. Os códigos Pix são simulados.</p>}
+        {sandbox && <p className="bg-amber-100 text-amber-900 text-center py-2 text-xs font-semibold">Ambiente de teste. Os pagamentos são simulados.</p>}
         <div className="max-w-3xl mx-auto text-center px-4 py-12 sm:py-16 space-y-6">
           <p className="inline-flex items-center gap-2 bg-terracotta-100 text-terracotta-800 border border-terracotta-200 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold">
             <Sparkles className="w-4 h-4" /> Bem-vindos ao nosso chá de cozinha!
@@ -46,7 +46,7 @@ export function GiftList({ gifts, sandbox }: { gifts: Gift[]; sandbox: boolean }
           </div>
           <div className="flex flex-wrap gap-3 justify-center">
             <a href="#lista-presentes" className="btn-primary"><GiftIcon size={18} /> Escolher presente</a>
-            <a href="#doar-dinheiro" className="btn-secondary"><Wallet size={18} /> Fazer doação Pix</a>
+            <a href="#doar-dinheiro" className="btn-secondary"><Wallet size={18} /> Fazer uma doação</a>
           </div>
         </div>
       </section>
@@ -55,7 +55,7 @@ export function GiftList({ gifts, sandbox }: { gifts: Gift[]; sandbox: boolean }
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-terracotta-700">Sugestões para a cozinha nova</p>
             <h2 className="text-3xl font-serif font-bold text-sage-900 mt-1">Lista de presentes</h2>
-            <p className="text-sm text-sage-700 mt-2">Contribua com Pix ou reserve um item por 24 horas para comprar na Shopee.</p>
+            <p className="text-sm text-sage-700 mt-2">Contribua com Pix{cardEnabled && " ou cartão"} ou reserve um item por 24 horas para comprar na Shopee.</p>
           </div>
           {gifts.length > 0 && (
             <div className="flex gap-2 flex-wrap">
@@ -81,7 +81,7 @@ export function GiftList({ gifts, sandbox }: { gifts: Gift[]; sandbox: boolean }
         )}
         {filtered.length ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((gift) => <GiftCard key={gift.id} gift={gift} onSelect={(method) => setSelection({ gift, method })} />)}
+            {filtered.map((gift) => <GiftCard key={gift.id} gift={gift} cardEnabled={cardEnabled} onSelect={(method) => setSelection({ gift, method })} />)}
           </div>
         ) : (
           <div className="rounded-3xl border border-sage-200 bg-white p-10 text-center">
@@ -90,7 +90,7 @@ export function GiftList({ gifts, sandbox }: { gifts: Gift[]; sandbox: boolean }
           </div>
         )}
       </section>
-      <FreeDonationSection />
+      <FreeDonationSection cardEnabled={cardEnabled} />
       {selection && <GiftActionModal {...selection} onClose={() => { setSelection(null); router.refresh(); }} />}
     </div>
   );

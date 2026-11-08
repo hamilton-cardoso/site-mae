@@ -1,14 +1,14 @@
-import { Coins, Gift as GiftIcon, ShoppingBag } from "lucide-react";
-import { brl, type Gift } from "@/data/gifts";
+import { Coins, CreditCard, Gift as GiftIcon, ShoppingBag } from "lucide-react";
+import { brl, CARD_MIN_CENTS, type Gift, type GiftAction } from "@/data/gifts";
 
 const labels = { available: "Disponível", funded: "Meta atingida", reserved: "Reservado", purchased: "Compra informada", received: "Presente recebido" };
 
-export function GiftCard({ gift, onSelect }: { gift: Gift; onSelect: (method: "pix" | "shop") => void }) {
+export function GiftCard({ gift, cardEnabled, onSelect }: { gift: Gift; cardEnabled: boolean; onSelect: (method: GiftAction) => void }) {
   const progress = gift.pixTargetCents > 0
     ? Math.min(100, Math.round(gift.raisedCents / gift.pixTargetCents * 100))
     : 0;
   const available = gift.canPay || gift.canReserve;
-  const label = gift.status === "available" && !available ? "Aguardando Pix" : labels[gift.status];
+  const label = gift.status === "available" && !available ? "Aguardando pagamento" : labels[gift.status];
 
   return (
     <article className="bg-white border border-sage-200 rounded-3xl overflow-hidden flex flex-col">
@@ -34,11 +34,12 @@ export function GiftCard({ gift, onSelect }: { gift: Gift; onSelect: (method: "p
           {gift.pixEnabled && gift.pixTargetCents > 0 && (
             <div className="space-y-1 text-xs text-sage-700">
               <progress className="w-full h-2 block accent-sage-700" aria-label="Meta do presente" value={progress} max={100} />
-              <p>{brl(gift.raisedCents)} recebidos</p>
+              <p>{brl(gift.raisedCents)} confirmados</p>
             </div>
           )}
           {available && <div className="flex flex-wrap gap-2">
             {gift.canPay && <button type="button" className="btn-primary" onClick={() => onSelect("pix")}><Coins size={16} /> Contribuir via Pix</button>}
+            {gift.canPay && cardEnabled && gift.availableCents >= CARD_MIN_CENTS && <button type="button" className="btn-secondary" onClick={() => onSelect("card")}><CreditCard size={16} /> Cartão de crédito</button>}
             {gift.canReserve && <button type="button" className="btn-secondary" onClick={() => onSelect("shop")}><ShoppingBag size={16} /> {gift.quantity > 1 ? "Reservar 1 unidade" : "Reservar presente"}</button>}
           </div>}
         </div>

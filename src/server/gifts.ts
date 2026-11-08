@@ -132,10 +132,10 @@ export async function saveGift(input: GiftInput, giftId?: string) {
     const termsChanged = input.priceCents !== old.price_cents || input.quotaCents !== old.quota_cents
       || input.pixEnabled !== old.pix_enabled || input.storeUrl !== old.store_url;
     if (termsChanged && (committed.raised + committed.held > 0 || shopUnits > 0)) {
-      throw new RequestError(409, "Este presente já tem Pix ou reserva. Você ainda pode ajustar a quantidade e os dados de exibição.");
+      throw new RequestError(409, "Este presente já tem contribuição ou reserva. Você ainda pode ajustar a quantidade e os dados de exibição.");
     }
     if (quantity < old.quantity && availableCents < 0) {
-      throw new RequestError(409, "A quantidade precisa comportar as unidades já reservadas e os valores comprometidos via Pix.");
+      throw new RequestError(409, "A quantidade precisa comportar as unidades já reservadas e os valores comprometidos.");
     }
     await client.query(`
       UPDATE gifts SET name = $1, category = $2, description = $3, price_cents = $4, quota_cents = $5,
@@ -217,7 +217,8 @@ export async function adminSnapshot() {
     listGifts(true),
     db().query<AdminPayment & { expiresAt: number }>(`
       SELECT id, guest_name AS "guestName", gift_name AS "giftName", message, amount_cents AS "amountCents",
-        status, created_at AS "createdAt", provider_payment_id AS "providerPaymentId", manual, expires_at AS "expiresAt"
+        status, created_at AS "createdAt", provider_payment_id AS "providerPaymentId", manual, method,
+        checkout_id AS "checkoutId", expires_at AS "expiresAt"
       FROM pix WHERE environment = $1 ORDER BY created_at DESC
     `, [environment]),
     db().query<ReservationRow>("SELECT * FROM reservations WHERE environment = $1 ORDER BY created_at DESC", [environment]),

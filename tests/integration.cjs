@@ -80,6 +80,7 @@ async function main() {
         ASAAS_API_KEY: "$aact_hmlg_integration_fixture",
         ASAAS_PIX_KEY: "fixture-pix-key",
         ASAAS_WEBHOOK_TOKEN: webhookToken,
+        ASAAS_CARD_RETURN_ORIGIN: "https://fixture.example",
         ADMIN_PASSWORD: password,
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -208,6 +209,51 @@ async function main() {
     await request("POST", "/api/pix", pixRequest(twoUnitGift, 501), 409);
     await request("POST", "/api/pix", pixRequest(twoUnitGift, 500));
 
+    const { id: cardGift } = (await request("POST", "/api/admin", { ...giftBody, name: "Presente no cartão", priceCents: 2011 }, 200, true)).result;
+    const card = { ...pixRequest(cardGift, 2011), message: "Recado cartão QA" };
+    await request("POST", "/api/cartao", { ...card, amountCents: 499 }, 400);
+    const checkout = (await request("POST", "/api/cartao", card)).result;
+    assert.equal(checkout.status, "pending");
+    assert.equal(checkout.checkoutUrl, "https://sandbox.asaas.com/checkoutSession/show?id=" + card.id);
+    assert.equal((await request("POST", "/api/cartao", card)).result.checkoutUrl, checkout.checkoutUrl);
+    await request("POST", "/api/pix", pixRequest(cardGift), 409);
+    await request("POST", "/api/reservas", { id: randomUUID(), giftId: cardGift, guestName: "Reserva concorrente" }, 409);
+    await request("GET", "/api/pix/" + card.id, undefined, 404);
+    const callback = await (await fetch(base + "/cartao/" + card.id)).text();
+    assert(callback.includes("Aguardando confirmação do cartão"));
+    const cardWebhook = (event, data, expected = 200) => request(
+      "POST", "/api/webhooks/asaas", { event, ...data }, expected, false, { "asaas-access-token": webhookToken },
+    );
+    const checkoutEvent = { checkout: { id: card.id, status: "PAID" } };
+    await request("POST", "/api/webhooks/asaas", { event: "CHECKOUT_PAID", ...checkoutEvent }, 401);
+    await cardWebhook("CHECKOUT_PAID", checkoutEvent, 503);
+    state.payments.pay_card1 = { id: "pay_card1", checkoutSession: card.id, billingType: "CREDIT_CARD", status: "CONFIRMED", value: 10.05 };
+    saveState();
+    await cardWebhook("CHECKOUT_PAID", checkoutEvent, 503);
+    state.payments.pay_card2 = { ...state.payments.pay_card1, id: "pay_card2", value: 10.06 };
+    saveState();
+    await cardWebhook("CHECKOUT_PAID", checkoutEvent);
+    await cardWebhook("CHECKOUT_PAID", checkoutEvent);
+    assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "received");
+    assert.equal(Number((await row("SELECT sum(amount_cents) AS total FROM pix WHERE gift_id=$1 AND status='received'", [cardGift])).total), 2011);
+    state.payments.pay_card1.status = "REFUNDED";
+    saveState();
+    await cardWebhook("PAYMENT_REFUNDED", { payment: state.payments.pay_card1 });
+    assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "review");
+    state.payments.pay_card2.status = "REFUNDED";
+    saveState();
+    await cardWebhook("PAYMENT_REFUNDED", { payment: state.payments.pay_card2 });
+    await cardWebhook("CHECKOUT_PAID", checkoutEvent);
+    assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "refunded");
+    const nextCard = pixRequest(cardGift, 501);
+    await request("POST", "/api/cartao", nextCard);
+    await cardWebhook("CHECKOUT_CANCELED", { checkout: { id: nextCard.id } });
+    assert.equal((await request("GET", "/api/cartao/" + nextCard.id)).result.status, "expired");
+    await request("POST", "/api/reservas", { id: randomUUID(), giftId: cardGift, guestName: "Reserva liberada" });
+    const freeCard = pixRequest(undefined, 500);
+    await request("POST", "/api/cartao", freeCard);
+    assert.equal((await request("GET", "/api/cartao/" + freeCard.id)).result.amountCents, 500);
+
     const free = pixRequest(undefined, 300);
     const freeTicket = (await request("POST", "/api/pix", free)).result;
     state.payments.pay_mismatch = {
@@ -241,13 +287,14 @@ async function main() {
     assert.equal(panel.status, 200);
     const panelPage = await panel.text();
     assert(panelPage.includes(">Recados</button>") && panelPage.includes("Recado privado QA") && panelPage.includes("Recado Shopee QA"));
+    assert(panelPage.includes("Cartão aprovado") && panelPage.includes("Recado cartão QA"));
     const loginPage = await (await fetch(base + "/painel")).text();
     assert(!loginPage.includes("Recado privado QA") && !loginPage.includes("Recado Shopee QA"));
     assert.equal((await fetch(base + "/pix/" + first.id)).status, 200);
     assert.equal((await fetch(base + "/reserva/" + reservation.id)).status, 200);
     await request("DELETE", "/api/admin/session", undefined, 200, true);
     await request("POST", "/api/admin", { action: "archiveGift", id: previewGift, archived: true }, 401, true);
-    console.log("PASS event info, login, admin CRUD, private messages, Pix QR and retries, webhook authentication and duplication, authoritative amount, refund ordering, reservations, multi-unit capacity, concurrent claims, expiry reconciliation, provider failure.");
+    console.log("PASS event info, login, admin CRUD, private messages, Pix QR, card checkout and installments, webhook authentication and duplication, authoritative amounts, refunds, reservations, multi-unit capacity, concurrent claims, expiry reconciliation, provider failure.");
 
     if (process.argv.includes("--preview")) {
       console.log("QA preview " + base);

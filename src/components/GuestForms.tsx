@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { brl, formatDate, parseAmount, type Gift, type PixTicket, type ReservationTicket } from "@/data/gifts";
+import { brl, CARD_MIN_CENTS, formatDate, parseAmount, type CardTicket, type Gift, type PaymentMethod, type PixTicket, type ReservationTicket } from "@/data/gifts";
 import { api, errorText } from "@/data/client";
 
 function GuestFields() {
@@ -89,14 +89,15 @@ export function PixView({ initial, standalone = false }: { initial: PixTicket; s
   );
 }
 
-export function GuestPixForm({ gift }: { gift?: Gift }) {
+export function GuestContributionForm({ gift, method }: { gift?: Gift; method: PaymentMethod }) {
   const router = useRouter();
   const [pix, setPix] = useState<PixTicket | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef<string | null>(null);
   const maximum = Math.min(gift?.availableCents ?? 1_000_000, 1_000_000);
-  const amount = gift ? Math.min(gift.quotaCents ?? maximum, maximum) : 0;
+  const minimum = method === "card" ? CARD_MIN_CENTS : 1;
+  const amount = gift ? Math.min(Math.max(gift.quotaCents ?? maximum, minimum), maximum) : 0;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,10 +106,22 @@ export function GuestPixForm({ gift }: { gift?: Gift }) {
     setError("");
     try {
       requestId.current ??= crypto.randomUUID();
-      const result = await api<PixTicket>("/api/pix", "POST", {
+      const input = {
         id: requestId.current, giftId: gift?.id, guestName: form.get("guestName"),
         message: form.get("message"), amountCents: parseAmount(String(form.get("amount") || "")),
-      });
+      };
+      if (method === "card") {
+        const result = await api<CardTicket>("/api/cartao", "POST", input);
+        if (result.status === "creating") throw new Error("O checkout está sendo preparado. Tente novamente em alguns segundos.");
+        if (result.status === "expired" || result.status === "failed") {
+          requestId.current = null;
+          throw new Error("O checkout expirou ou ficou indisponível. Gere outro para continuar.");
+        }
+        if (result.checkoutUrl) window.location.assign(result.checkoutUrl);
+        else router.push("/cartao/" + result.id);
+        return;
+      }
+      const result = await api<PixTicket>("/api/pix", "POST", input);
       if (result.status === "creating") throw new Error("Seu QR está sendo preparado. Aguarde alguns segundos e tente novamente.");
       if (result.status === "failed" || result.status === "expired") {
         requestId.current = null;
@@ -127,14 +140,61 @@ export function GuestPixForm({ gift }: { gift?: Gift }) {
       <fieldset className="space-y-3" disabled={busy}>
         <GuestFields />
         <label className="field-label">Valor em reais
-          <input className="field" name="amount" type="number" inputMode="decimal" required step="0.01" min="0.01"
+          <input className="field" name="amount" type="number" inputMode="decimal" required step="0.01" min={minimum / 100}
             max={maximum / 100} defaultValue={amount ? (amount / 100).toFixed(2) : undefined} />
         </label>
         {gift && <p className="text-xs text-sage-700">Valor disponível para contribuir {brl(gift.availableCents)}.</p>}
-        <button className="btn-primary" type="submit">{busy ? "Gerando…" : "Gerar QR Code Pix"}</button>
+        {method === "card" && <p className="text-xs text-sage-700">À vista ou em até 2x. O Asaas exibe as opções disponíveis antes de confirmar.</p>}
+        <button className="btn-primary" type="submit">{busy ? "Preparando…" : method === "card" ? "Continuar no Asaas" : "Gerar QR Code Pix"}</button>
       </fieldset>
       {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     </form>
+  );
+}
+
+const cardLabels = {
+  creating: "Preparando seu checkout",
+  pending: "Aguardando confirmação do cartão",
+  received: "Pagamento aprovado. Obrigada pelo carinho!",
+  expired: "O checkout foi encerrado.",
+  failed: "O checkout ficou indisponível.",
+  refunded: "Pagamento estornado.",
+  review: "Pagamento em revisão pela organização do chá.",
+};
+
+export function CardView({ initial }: { initial: CardTicket }) {
+  const [ticket, setTicket] = useState(initial);
+  const [offline, setOffline] = useState(false);
+  const waiting = ticket.status === "pending" || ticket.status === "creating";
+
+  useEffect(() => {
+    if (!waiting) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const next = await api<CardTicket>("/api/cartao/" + initial.id);
+        if (active) {
+          setTicket(next);
+          setOffline(false);
+        }
+      } catch {
+        if (active) setOffline(true);
+      } finally {
+        if (active) timer = setTimeout(poll, 5000);
+      }
+    };
+    timer = setTimeout(poll, 2000);
+    return () => { active = false; clearTimeout(timer); };
+  }, [initial.id, waiting]);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-lg font-bold" role="status">{cardLabels[ticket.status]}</p>
+      <p className="text-sm">{brl(ticket.amountCents)}{ticket.sandbox && " · Pagamento simulado"}</p>
+      {ticket.checkoutUrl && <a className="btn-secondary" href={ticket.checkoutUrl}>Voltar ao checkout do Asaas</a>}
+      {offline && <p role="status" className="text-sm text-amber-800">Conexão indisponível. Vamos tentar consultar novamente.</p>}
+    </div>
   );
 }
 

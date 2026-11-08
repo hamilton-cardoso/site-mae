@@ -35,11 +35,12 @@ npm run dev
 
 - Cadastro, edição e arquivamento de presentes, com foto por URL HTTPS, categoria, descrição, valor-alvo, cota sugerida e link da Shopee.
 - Pix para cotas ou doações livres. Cada contribuição gera um QR Code estático individual do Asaas com valor fixo, validade de 30 minutos e uso único.
+- Cartão para cotas ou doações livres em checkout hospedado pelo Asaas. O cartão aceita pagamentos a partir de R$ 5 e até duas parcelas a partir de R$ 10.
 - Confirmação pelo webhook, com token e consulta autenticada ao Asaas. O valor, o identificador do QR e o status recebido são conferidos antes de contabilizar.
 - Identificador único da contribuição para repetir uma requisição sem criar outro QR Code. Recebimentos repetidos são atualizados no mesmo registro.
 - Cotas pendentes bloqueiam o valor reservado. Após o vencimento e uma margem de dois minutos, o servidor consulta o Asaas antes de liberar o saldo para outro convidado.
 - Reservas da Shopee com prazo de 24 horas. O convidado recebe um link privado para avisar que comprou ou cancelar a reserva. A organização confirma o recebimento do presente pelo painel.
-- Cada reserva da Shopee ocupa uma unidade. As cotas via Pix usam o saldo das unidades restantes e a lista só aceita uma nova reserva quando há saldo para uma unidade inteira.
+- Cada reserva da Shopee ocupa uma unidade. As cotas via Pix e cartão usam o mesmo saldo e a lista só aceita uma nova reserva quando há saldo para uma unidade inteira.
 - A aba **Recados** do painel reúne as mensagens das contribuições e reservas.
 - Login do painel com cookie HttpOnly, expiração e limitação de tentativas. O painel mostra Pix, doações lançadas manualmente e reservas separadamente, com exportação CSV.
 - Estornos totais atualizam o recebimento. Valores divergentes, pagamentos conflitantes e estornos parciais são sinalizados para revisão no Asaas.
@@ -54,6 +55,8 @@ https://seu-dominio/api/webhooks/asaas
 ```
 
 Use o mesmo valor de `ASAAS_WEBHOOK_TOKEN` como token de autenticação do webhook. O Asaas o envia no cabeçalho `asaas-access-token`. Habilite os eventos `PAYMENT_RECEIVED`, `PAYMENT_REFUNDED` e `PAYMENT_PARTIALLY_REFUNDED`.
+
+Para habilitar o cartão, acrescente `CHECKOUT_PAID`, `CHECKOUT_CANCELED`, `CHECKOUT_EXPIRED`, `PAYMENT_CONFIRMED`, `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE` e `PAYMENT_AWAITING_CHARGEBACK_REVERSAL` ao webhook. Configure `ASAAS_CARD_RETURN_ORIGIN` com a origem HTTPS do site. No Amplify, coloque essa origem no parâmetro de execução junto com as outras variáveis do Asaas.
 
 O servidor retorna sucesso somente depois de processar ou reconhecer o evento. Erros temporários retornam erro para permitir o reenvio pelo Asaas. O botão **Consultar Asaas** no painel permite reconciliar um recebimento pendente.
 

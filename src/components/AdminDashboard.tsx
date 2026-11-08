@@ -7,9 +7,14 @@ import { api, errorText } from "@/data/client";
 import { brl, CATEGORIES, formatDate, parseAmount, type AdminPayment, type AdminReservation, type Gift } from "@/data/gifts";
 
 const paymentLabels = {
-  creating: "Gerando QR Code", pending: "Aguardando Pix", received: "Recebido",
+  creating: "Preparando pagamento", pending: "Aguardando pagamento", received: "Recebido",
   expired: "Expirado", failed: "Falhou", refunded: "Estornado", review: "Revisar no Asaas",
 };
+
+const paymentMethod = (payment: AdminPayment) => payment.manual ? "Doação manual" : payment.method === "card" ? "Cartão" : "Pix";
+
+const paymentStatus = (payment: AdminPayment) =>
+  payment.method === "card" && payment.status === "received" ? "Aprovado no cartão" : paymentLabels[payment.status];
 
 const reservationLabels = {
   reserved: "Reservado", purchased: "Compra informada", received: "Presente recebido",
@@ -89,7 +94,7 @@ function GiftEditor({ gift, onSaved, onCancel }: { gift?: Gift; onSaved: () => v
         <label className="field-label">Valor por unidade em reais<input className="field" name="price" type="number" required step="0.01" min="0.01" max="10000" defaultValue={gift ? gift.priceCents / 100 : undefined} /></label>
         <label className="field-label">Quantidade<input className="field" name="quantity" type="number" required step="1" min="1" max="2147483647" defaultValue={gift?.quantity ?? 1} /></label>
         {pixEnabled && <label className="field-label">Valor sugerido da cota (opcional)<input className="field" name="quota" type="number" step="0.01" min="0.01" max="10000" defaultValue={gift?.quotaCents ? gift.quotaCents / 100 : undefined} /></label>}
-        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={pixEnabled} onChange={(event) => setPixEnabled(event.target.checked)} /> Aceitar Pix para este item</label>
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={pixEnabled} onChange={(event) => setPixEnabled(event.target.checked)} /> Aceitar contribuições em dinheiro para este item</label>
       </fieldset>
       <div className="flex gap-2">
         <button className="btn-primary" disabled={busy}>{busy ? "Salvando…" : "Salvar presente"}</button>
@@ -107,11 +112,11 @@ function csvCell(value: string) {
 
 function exportCsv(payments: AdminPayment[], reservations: AdminReservation[]) {
   const rows = [
-    ["Data", "Tipo", "Status", "Convidado", "Presente", "Valor (R$)", "Recado", "Pagamento Asaas"],
+    ["Data", "Tipo", "Status", "Convidado", "Presente", "Valor (R$)", "Recado", "Referência Asaas"],
     ...payments.map((payment) => [
-      formatDate(payment.createdAt), payment.manual ? "Doação manual" : payment.giftName ? "Cota Pix" : "Doação Pix",
-      paymentLabels[payment.status], payment.guestName, payment.giftName || "", (payment.amountCents / 100).toFixed(2).replace(".", ","),
-      payment.message, payment.providerPaymentId || "",
+      formatDate(payment.createdAt), paymentMethod(payment),
+      paymentStatus(payment), payment.guestName, payment.giftName || "", (payment.amountCents / 100).toFixed(2).replace(".", ","),
+      payment.message, payment.checkoutId || payment.providerPaymentId || "",
     ]),
     ...reservations.map((reservation) => [
       formatDate(reservation.createdAt), "Shopee", reservationLabels[reservation.status], reservation.guestName,
@@ -127,16 +132,16 @@ function exportCsv(payments: AdminPayment[], reservations: AdminReservation[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const sections = ["Presentes", "Pix e doações", "Reservas Shopee", "Recados"] as const;
+const sections = ["Presentes", "Pagamentos e doações", "Reservas Shopee", "Recados"] as const;
 type Section = typeof sections[number];
 
 function AdminMessages({ payments, reservations }: { payments: AdminPayment[]; reservations: AdminReservation[] }) {
   const messages = [
     ...payments.map((payment) => ({
       ...payment,
-      key: "pix-" + payment.id,
-      source: payment.manual ? "Doação manual" : "Pix",
-      statusLabel: paymentLabels[payment.status],
+      key: "payment-" + payment.id,
+      source: paymentMethod(payment),
+      statusLabel: paymentStatus(payment),
     })),
     ...reservations.map((reservation) => ({
       ...reservation,
@@ -176,7 +181,8 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
   const [manual, setManual] = useState(false);
 
   const confirmed = payments.filter((payment) => payment.status === "received");
-  const pixTotal = confirmed.filter((payment) => !payment.manual).reduce((total, payment) => total + payment.amountCents, 0);
+  const pixTotal = confirmed.filter((payment) => !payment.manual && payment.method === "pix").reduce((total, payment) => total + payment.amountCents, 0);
+  const cardTotal = confirmed.filter((payment) => payment.method === "card").reduce((total, payment) => total + payment.amountCents, 0);
   const manualTotal = confirmed.filter((payment) => payment.manual).reduce((total, payment) => total + payment.amountCents, 0);
   const receivedGifts = reservations.filter((reservation) => reservation.status === "received").length;
   const selectedGift = gifts.find((gift) => gift.id === editing);
@@ -222,9 +228,10 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
           <button className="btn-secondary" disabled={busy} onClick={() => run(() => api("/api/admin/session", "DELETE"))}><LogOut size={16} /> Sair</button>
         </div>
       </header>
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           ["Pix confirmado", brl(pixTotal)],
+          ["Cartão aprovado (valor bruto)", brl(cardTotal)],
           ["Doações lançadas à mão", brl(manualTotal)],
           ["Presentes recebidos pela Shopee", receivedGifts],
         ].map(([label, value]) => (
@@ -268,9 +275,9 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
         </div>
       </div>}
 
-      {section === "Pix e doações" && <div className="space-y-4">
+      {section === "Pagamentos e doações" && <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-serif text-2xl font-bold">Pix e doações</h2>
+          <h2 className="font-serif text-2xl font-bold">Pagamentos e doações</h2>
           <button className="btn-secondary" onClick={() => setManual(!manual)}>{manual ? "Fechar lançamento" : "Lançar doação manual"}</button>
         </div>
         {manual && <form onSubmit={saveManual} className="bg-white border border-sage-200 rounded-2xl p-4 space-y-3">
@@ -285,12 +292,13 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
           <article key={payment.id} className="bg-white border border-sage-200 rounded-2xl p-4 flex flex-wrap justify-between gap-3">
             <div className="space-y-1">
               <h3 className="font-bold">{payment.guestName} · {brl(payment.amountCents)}</h3>
-              <p className="text-sm text-sage-700">{payment.giftName || (payment.manual ? "Doação manual" : "Doação livre")} · {paymentLabels[payment.status]} · {formatDate(payment.createdAt)}</p>
+              <p className="text-sm text-sage-700">{paymentMethod(payment)} · {payment.giftName || "Doação livre"} · {paymentStatus(payment)} · {formatDate(payment.createdAt)}</p>
               {payment.message && <p className="text-sm break-all">{payment.message}</p>}
               {payment.providerPaymentId && <p className="text-xs text-sage-600">Asaas {payment.providerPaymentId}</p>}
+              {payment.checkoutId && <p className="text-xs text-sage-600">Checkout Asaas {payment.checkoutId}</p>}
             </div>
             {["pending", "review"].includes(payment.status) &&
-              <button className="btn-secondary self-start" disabled={busy} onClick={() => action({ action: "reconcilePix", id: payment.id })}>Consultar Asaas</button>}
+              <button className="btn-secondary self-start" disabled={busy} onClick={() => action({ action: "reconcilePayment", id: payment.id })}>Consultar Asaas</button>}
           </article>
         ))}
       </div>}

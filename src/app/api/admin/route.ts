@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/server/auth";
 import { addManualDonation, archiveGift, saveGift, updateReservation } from "@/server/gifts";
 import { cents, giftInput, handle, id, readJson, RequestError, text } from "@/server/http";
-import { reconcileGift, reconcilePix } from "@/server/payments";
+import { reconcileContribution, reconcileGift } from "@/server/payments";
 
 export async function POST(request: Request) {
   return handle(async () => {
@@ -28,7 +28,8 @@ export async function POST(request: Request) {
         await addManualDonation(text(body.guestName, 100, true), cents(body.amountCents), text(body.message, 500));
         break;
       case "reconcilePix":
-        await reconcilePix(id(body.id));
+      case "reconcilePayment":
+        await reconcileContribution(id(body.id));
         break;
       default:
         throw new RequestError(400, "Ação inválida.");

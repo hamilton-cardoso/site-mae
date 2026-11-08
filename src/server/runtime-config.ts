@@ -1,6 +1,7 @@
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
 const keys = ["DATABASE_URL", "ASAAS_ENV", "ASAAS_API_KEY", "ASAAS_PIX_KEY", "ASAAS_WEBHOOK_TOKEN", "ADMIN_PASSWORD"] as const;
+const optionalKey = "ASAAS_CARD_RETURN_ORIGIN";
 let loading: Promise<void> | undefined;
 
 async function loadParameter(arn: string) {
@@ -13,13 +14,14 @@ async function loadParameter(arn: string) {
       new GetParameterCommand({ Name: arn, WithDecryption: true }),
       { abortSignal: AbortSignal.timeout(5_000) },
     );
-    const settings: Partial<Record<typeof keys[number], unknown>> = JSON.parse(response.Parameter?.Value ?? "{}");
+    const settings: Partial<Record<typeof keys[number] | typeof optionalKey, unknown>> = JSON.parse(response.Parameter?.Value ?? "{}");
     const entries = keys.map((key) => {
       const value = settings?.[key];
       if (typeof value !== "string" || !value.trim()) throw new Error("Variável ausente na configuração do servidor.");
       return [key, value] as const;
     });
     for (const [key, value] of entries) process.env[key] = value;
+    if (typeof settings[optionalKey] === "string") process.env[optionalKey] = settings[optionalKey];
   } finally {
     client.destroy();
   }

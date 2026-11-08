@@ -1,12 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
+import { CARD_INSTALLMENT_MIN_CENTS } from "@/data/gifts";
 import { RequestError } from "./http";
 
 export const QR_LIFETIME_SECONDS = 1800;
+export const CARD_CHECKOUT_MINUTES = 30;
 
 export function asaasEnvironment(): "sandbox" | "production" {
   const mode = process.env.ASAAS_ENV || "sandbox";
   if (mode !== "sandbox" && mode !== "production") {
-    throw new RequestError(503, "Ambiente do Pix inválido.");
+    throw new RequestError(503, "Ambiente de pagamentos inválido.");
   }
   return mode;
 }
@@ -14,7 +16,7 @@ export function asaasEnvironment(): "sandbox" | "production" {
 export function webhookToken() {
   const token = process.env.ASAAS_WEBHOOK_TOKEN;
   if (!token || token.length < 32) {
-    throw new RequestError(503, "O webhook do Pix ainda não está configurado.");
+    throw new RequestError(503, "O webhook do Asaas ainda não está configurado.");
   }
   return token;
 }
@@ -31,7 +33,7 @@ function config() {
   const live = asaasEnvironment() === "production";
   const key = process.env.ASAAS_API_KEY;
   if (!key?.startsWith(live ? "$aact_prod_" : "$aact_hmlg_")) {
-    throw new RequestError(503, "A chave de API do Pix ainda não está configurada para este ambiente.");
+    throw new RequestError(503, "A chave de API do Asaas ainda não está configurada para este ambiente.");
   }
   return {
     key,
@@ -60,12 +62,13 @@ async function asaas<T>(path: string, body?: object): Promise<T> {
   } catch {
     console.error("Falha de comunicação com a API do Asaas.");
   }
-  throw new RequestError(503, "O Pix está temporariamente indisponível. Tente novamente.");
+  throw new RequestError(503, "O pagamento está temporariamente indisponível. Tente novamente.");
 }
 
 export interface AsaasPayment {
   id: string;
   pixQrCodeId?: string;
+  checkoutSession?: string | null;
   billingType: string;
   status: string;
   value: number;
@@ -104,6 +107,62 @@ export async function findQrPayments(qrId: string) {
   );
   if (!Array.isArray(result.data) || result.hasMore) {
     throw new RequestError(503, "Não foi possível conciliar o Pix vencido.");
+  }
+  return result.data;
+}
+
+export function cardReturnOrigin() {
+  const value = process.env.ASAAS_CARD_RETURN_ORIGIN;
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && (value === url.origin || value === url.origin + "/") ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+export function validateCardConfig() {
+  const origin = cardReturnOrigin();
+  if (!origin) throw new RequestError(503, "Pagamento com cartão indisponível.");
+  config();
+  webhookToken();
+  return origin;
+}
+
+export const isCheckoutId = (value: unknown): value is string =>
+  typeof value === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
+
+export async function createCardCheckout(id: string, amountCents: number, origin: string) {
+  const canSplit = amountCents >= CARD_INSTALLMENT_MIN_CENTS;
+  const returnUrl = origin + "/cartao/" + id;
+  const checkout = await asaas<{ id: string }>("/checkouts", {
+    billingTypes: ["CREDIT_CARD"],
+    chargeTypes: canSplit ? ["DETACHED", "INSTALLMENT"] : ["DETACHED"],
+    ...(canSplit && { installment: { maxInstallmentCount: 2 } }),
+    minutesToExpire: CARD_CHECKOUT_MINUTES,
+    externalReference: id,
+    callback: { successUrl: returnUrl, cancelUrl: returnUrl, expiredUrl: returnUrl },
+    items: [{ name: "Chá da Juscélia", description: "Contribuição para o chá de cozinha", quantity: 1, value: amountCents / 100 }],
+  });
+  if (!isCheckoutId(checkout.id)) throw new RequestError(503, "O Asaas não retornou um checkout válido.");
+  return checkout.id;
+}
+
+export function cardCheckoutUrl(id: string) {
+  const host = asaasEnvironment() === "sandbox" ? "sandbox.asaas.com" : "asaas.com";
+  return "https://" + host + "/checkoutSession/show?id=" + encodeURIComponent(id);
+}
+
+export async function findCheckoutPayments(id: string) {
+  const result = await asaas<{ data: AsaasPayment[]; hasMore: boolean }>(
+    "/payments?checkoutSession=" + encodeURIComponent(id) + "&limit=10",
+  );
+  if (!Array.isArray(result.data) || result.hasMore || result.data.some((payment) =>
+    payment.checkoutSession !== id || payment.billingType !== "CREDIT_CARD" ||
+    !Number.isFinite(payment.value) || payment.value <= 0
+  )) {
+    throw new RequestError(503, "O Asaas retornou cobranças incompatíveis com o checkout.");
   }
   return result.data;
 }

@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS pix (
 );
 
 CREATE INDEX IF NOT EXISTS pix_gift ON pix (environment, gift_id, status);
+ALTER TABLE pix ADD COLUMN IF NOT EXISTS method TEXT NOT NULL DEFAULT 'pix' CHECK (method IN ('pix', 'card'));
+ALTER TABLE pix ADD COLUMN IF NOT EXISTS checkout_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS pix_checkout ON pix (environment, checkout_id) WHERE checkout_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS reservations (
   id TEXT PRIMARY KEY,

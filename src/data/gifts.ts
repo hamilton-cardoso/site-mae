@@ -33,6 +33,11 @@ export interface Gift extends GiftInput {
 }
 
 export type PixStatus = "creating" | "pending" | "received" | "expired" | "failed" | "refunded" | "review";
+export type PaymentMethod = "pix" | "card";
+export type GiftAction = PaymentMethod | "shop";
+
+export const CARD_MIN_CENTS = 500;
+export const CARD_INSTALLMENT_MIN_CENTS = 2 * CARD_MIN_CENTS;
 
 export interface PixTicket {
   id: string;
@@ -43,6 +48,8 @@ export interface PixTicket {
   image?: string;
   payload?: string;
 }
+
+export type CardTicket = Omit<PixTicket, "image" | "payload"> & { checkoutUrl?: string };
 
 export type ReservationStatus = "reserved" | "purchased" | "received" | "cancelled" | "expired";
 
@@ -64,6 +71,8 @@ export interface AdminPayment {
   createdAt: number;
   providerPaymentId: string | null;
   manual: boolean;
+  method: PaymentMethod;
+  checkoutId: string | null;
 }
 
 export interface AdminReservation extends ReservationTicket {
@@ -76,7 +85,7 @@ export const EVENT_INFO = {
   honoreeName: "Juscélia",
   title: "Chá de Cozinha da Juscélia",
   subtitle:
-    "Cada detalhe da cozinha nova está sendo preparado com muito amor! Escolha um presente, contribua com uma cota ou envie um carinho em dinheiro via Pix.",
+    "Cada detalhe da cozinha nova está sendo preparado com muito amor! Escolha um presente, contribua com uma cota ou envie um carinho em dinheiro.",
   date: "05 de dezembro de 2026 às 15h30",
   location: "IAIE - Rua Robert Campim, 146",
 };
