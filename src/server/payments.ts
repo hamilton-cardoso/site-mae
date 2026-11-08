@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { CARD_MIN_CENTS, type CardTicket, type PaymentMethod, type PixStatus, type PixTicket } from "@/data/gifts";
+import { brl, CARD_MIN_CENTS, type CardTicket, type PaymentMethod, type PixStatus, type PixTicket } from "@/data/gifts";
 import {
   asaasEnvironment, CARD_CHECKOUT_MINUTES, cardCheckoutUrl, createCardCheckout, createQr, findCheckoutPayments,
   findQrPayments, isCheckoutId, QR_LIFETIME_SECONDS, readPayment, validateCardConfig, validatePixConfig,
@@ -325,7 +325,7 @@ export async function getCard(id: string, reconcile = true) {
 }
 
 export async function startCard(id: string, giftId: string | null, name: string, message: string, amount: number) {
-  if (amount < CARD_MIN_CENTS) throw new RequestError(400, "O valor mínimo para pagar com cartão é R$ 5,00.");
+  if (amount < CARD_MIN_CENTS) throw new RequestError(400, `O valor mínimo para pagar com cartão é ${brl(CARD_MIN_CENTS)}.`);
   const origin = validateCardConfig();
   const created = await holdContribution(id, giftId, name, message, amount, "card");
   if (!created) {

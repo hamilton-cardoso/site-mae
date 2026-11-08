@@ -144,7 +144,7 @@ export function GuestContributionForm({ gift, method }: { gift?: Gift; method: P
             max={maximum / 100} defaultValue={amount ? (amount / 100).toFixed(2) : undefined} />
         </label>
         {gift && <p className="text-xs text-sage-700">Valor disponível para contribuir {brl(gift.availableCents)}.</p>}
-        {method === "card" && <p className="text-xs text-sage-700">À vista ou em até 2x. O Asaas exibe as opções disponíveis antes de confirmar.</p>}
+        {method === "card" && <p className="text-xs text-sage-700">A partir de {brl(CARD_MIN_CENTS)}, à vista ou em até 2x.</p>}
         <button className="btn-primary" type="submit">{busy ? "Preparando…" : method === "card" ? "Continuar no Asaas" : "Gerar QR Code Pix"}</button>
       </fieldset>
       {error && <p role="alert" className="text-sm text-red-800">{error}</p>}

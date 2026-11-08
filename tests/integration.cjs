@@ -211,7 +211,8 @@ async function main() {
 
     const { id: cardGift } = (await request("POST", "/api/admin", { ...giftBody, name: "Presente no cartão", priceCents: 2011 }, 200, true)).result;
     const card = { ...pixRequest(cardGift, 2011), message: "Recado cartão QA" };
-    await request("POST", "/api/cartao", { ...card, amountCents: 499 }, 400);
+    const belowCardMinimum = await request("POST", "/api/cartao", { ...card, amountCents: 1999 }, 400);
+    assert(belowCardMinimum.result.error.includes("20,00"));
     const checkout = (await request("POST", "/api/cartao", card)).result;
     assert.equal(checkout.status, "pending");
     assert.equal(checkout.checkoutUrl, "https://sandbox.asaas.com/checkoutSession/show?id=" + card.id);
@@ -246,14 +247,14 @@ async function main() {
     await cardWebhook("PAYMENT_REFUNDED", { payment: state.payments.pay_card2 });
     await cardWebhook("CHECKOUT_PAID", checkoutEvent);
     assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "refunded");
-    const nextCard = pixRequest(cardGift, 501);
+    const nextCard = pixRequest(cardGift, 2000);
     await request("POST", "/api/cartao", nextCard);
     await cardWebhook("CHECKOUT_CANCELED", { checkout: { id: nextCard.id } });
     assert.equal((await request("GET", "/api/cartao/" + nextCard.id)).result.status, "expired");
     await request("POST", "/api/reservas", { id: randomUUID(), giftId: cardGift, guestName: "Reserva liberada" });
-    const freeCard = pixRequest(undefined, 500);
+    const freeCard = pixRequest(undefined, 2000);
     await request("POST", "/api/cartao", freeCard);
-    assert.equal((await request("GET", "/api/cartao/" + freeCard.id)).result.amountCents, 500);
+    assert.equal((await request("GET", "/api/cartao/" + freeCard.id)).result.amountCents, 2000);
 
     const free = pixRequest(undefined, 300);
     const freeTicket = (await request("POST", "/api/pix", free)).result;

@@ -26,12 +26,10 @@ globalThis.fetch = async function (input, options = {}) {
   if (options.method === "POST" && url.pathname === "/v3/checkouts") {
     const body = JSON.parse(options.body);
     const item = body.items?.[0];
-    const installments = item?.value >= 10;
     const callback = "https://fixture.example/cartao/" + body.externalReference;
     if (body.billingTypes?.join() !== "CREDIT_CARD" || body.minutesToExpire !== 30 ||
-        body.chargeTypes?.join() !== (installments ? "DETACHED,INSTALLMENT" : "DETACHED") ||
-        body.installment?.maxInstallmentCount !== (installments ? 2 : undefined) ||
-        item?.quantity !== 1 || item.value < 5 || typeof item.name !== "string" || item.name.length > 30 ||
+        body.chargeTypes?.join() !== "DETACHED,INSTALLMENT" || body.installment?.maxInstallmentCount !== 2 ||
+        item?.quantity !== 1 || item.value < 20 || typeof item.name !== "string" || item.name.length > 30 ||
         body.callback?.successUrl !== callback || body.callback?.cancelUrl !== callback || body.callback?.expiredUrl !== callback) {
       return Response.json({}, { status: 400 });
     }

@@ -1,5 +1,4 @@
 import { timingSafeEqual } from "node:crypto";
-import { CARD_INSTALLMENT_MIN_CENTS } from "@/data/gifts";
 import { RequestError } from "./http";
 
 export const QR_LIFETIME_SECONDS = 1800;
@@ -134,12 +133,11 @@ export const isCheckoutId = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
 
 export async function createCardCheckout(id: string, amountCents: number, origin: string) {
-  const canSplit = amountCents >= CARD_INSTALLMENT_MIN_CENTS;
   const returnUrl = origin + "/cartao/" + id;
   const checkout = await asaas<{ id: string }>("/checkouts", {
     billingTypes: ["CREDIT_CARD"],
-    chargeTypes: canSplit ? ["DETACHED", "INSTALLMENT"] : ["DETACHED"],
-    ...(canSplit && { installment: { maxInstallmentCount: 2 } }),
+    chargeTypes: ["DETACHED", "INSTALLMENT"],
+    installment: { maxInstallmentCount: 2 },
     minutesToExpire: CARD_CHECKOUT_MINUTES,
     externalReference: id,
     callback: { successUrl: returnUrl, cancelUrl: returnUrl, expiredUrl: returnUrl },

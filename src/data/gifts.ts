@@ -36,8 +36,7 @@ export type PixStatus = "creating" | "pending" | "received" | "expired" | "faile
 export type PaymentMethod = "pix" | "card";
 export type GiftAction = PaymentMethod | "shop";
 
-export const CARD_MIN_CENTS = 500;
-export const CARD_INSTALLMENT_MIN_CENTS = 2 * CARD_MIN_CENTS;
+export const CARD_MIN_CENTS = 2_000;
 
 export interface PixTicket {
   id: string;
