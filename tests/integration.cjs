@@ -236,6 +236,7 @@ async function main() {
     await cardWebhook("CHECKOUT_PAID", checkoutEvent);
     assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "received");
     assert.equal(Number((await row("SELECT sum(amount_cents) AS total FROM pix WHERE gift_id=$1 AND status='received'", [cardGift])).total), 2011);
+    await cardWebhook("PAYMENT_REFUNDED", { payment: state.payments.pay_card1 }, 503);
     state.payments.pay_card1.status = "REFUNDED";
     saveState();
     await cardWebhook("PAYMENT_REFUNDED", { payment: state.payments.pay_card1 });

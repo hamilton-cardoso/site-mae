@@ -95,7 +95,7 @@ export async function processWebhook(body: Record<string, unknown>) {
     const checkout = body.checkout as { id?: unknown } | undefined;
     if (!isCheckoutId(checkout?.id)) throw new RequestError(400, "Identificador do checkout inválido.");
     const row = await cardForCheckout(checkout.id);
-    if (row) await syncCard(row, body.event === "CHECKOUT_PAID" ? "paid" : "closed");
+    if (row) await syncCard(row, { checkout: body.event === "CHECKOUT_PAID" ? "paid" : "closed" });
     return;
   }
   const event = body.payment as Partial<AsaasPayment> | undefined;
@@ -105,7 +105,10 @@ export async function processWebhook(body: Record<string, unknown>) {
     const checkoutId = event.checkoutSession ?? (await readPayment(event.id)).checkoutSession;
     if (!isCheckoutId(checkoutId)) return;
     const row = await cardForCheckout(checkoutId);
-    if (row) await syncCard(row);
+    const refund = body.event === "PAYMENT_REFUNDED" || body.event === "PAYMENT_PARTIALLY_REFUNDED"
+      ? { paymentId: event.id, partial: body.event === "PAYMENT_PARTIALLY_REFUNDED" }
+      : undefined;
+    if (row) await syncCard(row, { refund });
     return;
   }
   if (body.event !== "PAYMENT_RECEIVED" && body.event !== "PAYMENT_REFUNDED"
@@ -263,7 +266,12 @@ function cardTicket(row: PixRow): CardTicket {
   };
 }
 
-async function syncCard(prior: PixRow, event?: "paid" | "closed") {
+type CardSyncSignal = {
+  checkout?: "paid" | "closed";
+  refund?: { paymentId: string; partial: boolean };
+};
+
+async function syncCard(prior: PixRow, { checkout, refund }: CardSyncSignal = {}) {
   return transaction(async (client) => {
     const gift = prior.gift_id ? await lockGift(client, prior.gift_id) : undefined;
     const row = await findContribution(prior.id, client);
@@ -271,6 +279,14 @@ async function syncCard(prior: PixRow, event?: "paid" | "closed") {
 
     // Read the current set of installments under the lock so older events cannot overwrite newer results.
     const payments = await findCheckoutPayments(row.checkout_id);
+    if (refund) {
+      const charge = payments.find((payment) => payment.id === refund.paymentId);
+      const partialRefunded = refund.partial && (charge?.status === "PARTIALLY_REFUNDED" ||
+        charge?.refunds?.some(({ status }) => status === "DONE"));
+      if (charge?.status !== "REFUNDED" && !partialRefunded) {
+        throw new RequestError(503, "O Asaas ainda está conciliando o estorno do cartão.");
+      }
+    }
     const total = payments.reduce((sum, payment) => sum + Math.round(payment.value * 100), 0);
     const distinctPayments = new Set(payments.map(({ id }) => id)).size;
     let status: PixStatus = row.status;
@@ -290,9 +306,9 @@ async function syncCard(prior: PixRow, event?: "paid" | "closed") {
         const required = row.status === "review" ? 0 : row.amount_cents;
         if (availableCents < required) status = "review";
       }
-    } else if (event === "paid" && status !== "received") {
+    } else if (checkout === "paid" && status !== "received") {
       throw new RequestError(503, "O Asaas ainda está conciliando o checkout.");
-    } else if (status === "pending" && (event === "closed" || row.expires_at + QR_GRACE_MS <= Date.now())) {
+    } else if (status === "pending" && (checkout === "closed" || row.expires_at + QR_GRACE_MS <= Date.now())) {
       status = payments.length ? "review" : "expired";
     }
 
