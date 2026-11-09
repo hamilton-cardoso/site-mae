@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
-import type { AdminPayment, AdminReservation, Gift, GiftInput, ReservationStatus, ReservationTicket } from "@/data/gifts";
+import type { AdminPayment, AdminReservation, Gift, GiftInput, ReservationStatus, ReservationStore, ReservationTicket } from "@/data/gifts";
 import { asaasEnvironment } from "./asaas";
 import { db, transaction } from "./db";
 import { RequestError } from "./http";
@@ -14,6 +14,8 @@ type GiftRow = Pick<Gift, "id" | "name" | "category" | "description"> & {
   quota_cents: number | null;
   pix_enabled: boolean;
   store_url: string | null;
+  mercado_livre_url: string | null;
+  website_url: string | null;
   image_url: string | null;
   archived: boolean;
 };
@@ -23,6 +25,7 @@ type ReservationRow = {
   gift_id: string;
   gift_name: string;
   store_url: string;
+  store: ReservationStore;
   guest_name: string;
   message: string;
   status: Exclude<ReservationStatus, "expired">;
@@ -101,46 +104,64 @@ export async function listGifts(includeArchived = false): Promise<Gift[]> {
     return {
       id: gift.id, name: gift.name, category: gift.category, description: gift.description,
       priceCents: gift.price_cents, quantity: gift.quantity, quotaCents: gift.quota_cents, pixEnabled: gift.pix_enabled,
-      storeUrl: gift.store_url, imageUrl: gift.image_url, archived: gift.archived,
+      storeUrl: gift.store_url, mercadoLivreUrl: gift.mercado_livre_url, websiteUrl: gift.website_url,
+      imageUrl: gift.image_url, archived: gift.archived,
       raisedCents: gift.raised, pixTargetCents, availableCents, availableUnits, status,
-      canReserve: !gift.archived && Boolean(gift.store_url) && availableUnits > 0,
+      canReserve: !gift.archived && Boolean(gift.store_url || gift.mercado_livre_url || gift.website_url) && availableUnits > 0,
       canPay: !gift.archived && gift.pix_enabled && availableCents > 0,
     };
   });
 }
 
 export async function saveGift(input: GiftInput, giftId?: string) {
+  function validatePurchaseOptions(mercadoLivreUrl: string | null, websiteUrl: string | null) {
+    if (!input.pixEnabled && !input.storeUrl && !mercadoLivreUrl && !websiteUrl) {
+      throw new RequestError(400, "Ative as contribuições em dinheiro ou informe um link de compra.");
+    }
+  }
+
   const values = [
     input.name, input.category, input.description, input.priceCents, input.quotaCents,
     input.pixEnabled, input.storeUrl, input.imageUrl,
   ];
   if (!giftId) {
     const id = randomUUID();
+    const mercadoLivreUrl = input.mercadoLivreUrl ?? null;
+    const websiteUrl = input.websiteUrl ?? null;
+    validatePurchaseOptions(mercadoLivreUrl, websiteUrl);
     await db().query(`
-      INSERT INTO gifts (name, category, description, price_cents, quota_cents, pix_enabled, store_url, image_url, quantity, id, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    `, [...values, input.quantity ?? 1, id, Date.now()]);
+      INSERT INTO gifts (name, category, description, price_cents, quota_cents, pix_enabled, store_url, image_url,
+        quantity, mercado_livre_url, website_url, id, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `, [...values, input.quantity ?? 1, mercadoLivreUrl, websiteUrl, id, Date.now()]);
     return id;
   }
 
   return transaction(async (client) => {
     const old = await lockGift(client, giftId);
     if (!old) throw new RequestError(404, "Presente não encontrado.");
+    const mercadoLivreUrl = input.mercadoLivreUrl === undefined ? old.mercado_livre_url : input.mercadoLivreUrl;
+    const websiteUrl = input.websiteUrl === undefined ? old.website_url : input.websiteUrl;
+    validatePurchaseOptions(mercadoLivreUrl, websiteUrl);
     const committed = await allocation(client, giftId);
     const quantity = input.quantity ?? old.quantity;
     const { shopUnits, availableCents } = availableCapacity({ ...old, quantity }, committed);
     const termsChanged = input.priceCents !== old.price_cents || input.quotaCents !== old.quota_cents
-      || input.pixEnabled !== old.pix_enabled || input.storeUrl !== old.store_url;
+      || input.pixEnabled !== old.pix_enabled
+      || (old.store_url !== null && input.storeUrl !== old.store_url)
+      || (old.mercado_livre_url !== null && mercadoLivreUrl !== old.mercado_livre_url)
+      || (old.website_url !== null && websiteUrl !== old.website_url);
     if (termsChanged && (committed.raised + committed.held > 0 || shopUnits > 0)) {
-      throw new RequestError(409, "Este presente já tem contribuição ou reserva. Você ainda pode ajustar a quantidade e os dados de exibição.");
+      throw new RequestError(409, "Este presente já tem contribuição ou reserva. Você pode adicionar lojas e ajustar a quantidade e os dados de exibição.");
     }
     if (quantity < old.quantity && availableCents < 0) {
       throw new RequestError(409, "A quantidade precisa comportar as unidades já reservadas e os valores comprometidos.");
     }
     await client.query(`
       UPDATE gifts SET name = $1, category = $2, description = $3, price_cents = $4, quota_cents = $5,
-        pix_enabled = $6, store_url = $7, image_url = $8, quantity = $9 WHERE id = $10
-    `, [...values, quantity, giftId]);
+        pix_enabled = $6, store_url = $7, image_url = $8, quantity = $9,
+        mercado_livre_url = $10, website_url = $11 WHERE id = $12
+    `, [...values, quantity, mercadoLivreUrl, websiteUrl, giftId]);
     return giftId;
   });
 }
@@ -159,7 +180,7 @@ async function findReservation(id: string, client: Pick<PoolClient, "query"> = d
 
 function toTicket(row: ReservationRow): ReservationTicket {
   return {
-    id: row.id, giftName: row.gift_name, storeUrl: row.store_url, expiresAt: row.expires_at,
+    id: row.id, giftName: row.gift_name, storeUrl: row.store_url, store: row.store, expiresAt: row.expires_at,
     status: row.status === "reserved" && row.expires_at <= Date.now() ? "expired" : row.status,
   };
 }
@@ -170,25 +191,27 @@ export async function reservationTicket(id: string) {
   return toTicket(row);
 }
 
-export function reserve(id: string, giftId: string, name: string, message: string) {
+export function reserve(id: string, giftId: string, name: string, message: string, store: ReservationStore) {
   return transaction(async (client) => {
     const gift = await lockGift(client, giftId);
     function replay(row: ReservationRow | undefined) {
-      if (row?.gift_id === giftId && row.guest_name === name && row.message === message) return toTicket(row);
+      if (row?.gift_id === giftId && row.guest_name === name && row.message === message && row.store === store) return toTicket(row);
       throw new RequestError(409, "Já existe uma reserva com este identificador.");
     }
 
     const prior = await findReservation(id, client);
     if (prior) return replay(prior);
-    if (!gift || gift.archived || !gift.store_url) throw new RequestError(404, "Presente indisponível.");
+    if (!gift || gift.archived) throw new RequestError(404, "Presente indisponível.");
+    const storeUrl = { shopee: gift.store_url, "mercado-livre": gift.mercado_livre_url, website: gift.website_url }[store];
+    if (!storeUrl) throw new RequestError(404, "Este presente não está disponível na loja selecionada.");
     const { availableCents } = availableCapacity(gift, await allocation(client, giftId));
     if (availableCents < gift.price_cents) throw new RequestError(409, "Não há unidade disponível para reservar.");
     const now = Date.now();
     const { rows: [row] } = await client.query<ReservationRow>(`
-      INSERT INTO reservations (id, environment, gift_id, gift_name, store_url, guest_name, message, status, expires_at, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'reserved', $8, $9)
+      INSERT INTO reservations (id, environment, gift_id, gift_name, store_url, guest_name, message, status, expires_at, created_at, store)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'reserved', $8, $9, $10)
       ON CONFLICT (id) DO NOTHING RETURNING *
-    `, [id, asaasEnvironment(), gift.id, gift.name, gift.store_url, name, message, now + RESERVATION_MS, now]);
+    `, [id, asaasEnvironment(), gift.id, gift.name, storeUrl, name, message, now + RESERVATION_MS, now, store]);
     return row ? toTicket(row) : replay(await findReservation(id, client));
   });
 }

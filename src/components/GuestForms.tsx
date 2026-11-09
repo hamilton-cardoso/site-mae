@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { brl, CARD_MIN_CENTS, formatDate, parseAmount, type CardTicket, type Gift, type PaymentMethod, type PixTicket, type ReservationTicket } from "@/data/gifts";
+import { brl, CARD_MIN_CENTS, formatDate, giftStores, parseAmount, STORES, type CardTicket, type Gift, type PaymentMethod, type PixTicket, type ReservationTicket } from "@/data/gifts";
 import { api, errorText } from "@/data/client";
 
 function GuestFields() {
@@ -238,7 +238,9 @@ export function ReservationView({ initial, standalone = false }: { initial: Rese
       {reservation.status === "reserved" && <>
         <p className="text-sm">Reservado até {formatDate(reservation.expiresAt)}. Guarde o link privado para voltar e avisar quando comprar.</p>
         <div className="flex gap-2 flex-wrap">
-          <a className="btn-primary" href={reservation.storeUrl} target="_blank" rel="noopener noreferrer">Abrir Shopee</a>
+          <a className="btn-primary" href={reservation.storeUrl} target="_blank" rel="noopener noreferrer">
+            {reservation.store === "website" ? "Abrir site da loja" : `Abrir ${STORES[reservation.store].label}`}
+          </a>
           <button className="btn-secondary" type="button" onClick={() => update("purchased")} disabled={busy}>Já comprei</button>
           <button className="btn-secondary" type="button" onClick={() => update("cancelled")} disabled={busy}>Cancelar reserva</button>
         </div>
@@ -256,6 +258,7 @@ export function ReserveForm({ gift }: { gift: Gift }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef<string | null>(null);
+  const stores = giftStores(gift);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -266,6 +269,7 @@ export function ReserveForm({ gift }: { gift: Gift }) {
       requestId.current ??= crypto.randomUUID();
       setReservation(await api("/api/reservas", "POST", {
         id: requestId.current, giftId: gift.id, guestName: form.get("guestName"), message: form.get("message"),
+        store: form.get("store"),
       }));
       router.refresh();
     } catch (error) { setError(errorText(error)); }
@@ -277,6 +281,21 @@ export function ReserveForm({ gift }: { gift: Gift }) {
     <form className="space-y-3" onSubmit={submit} onChange={() => { if (!busy) requestId.current = null; }}>
       <p className="text-sm text-sage-700">A reserva separa uma unidade para você por 24 horas.</p>
       <fieldset className="space-y-3" disabled={busy}>
+        {stores.length === 1 ? (
+          <>
+            <input type="hidden" name="store" value={stores[0]} />
+            <p className="text-sm font-semibold">{STORES[stores[0]].label}</p>
+          </>
+        ) : (
+          <fieldset className="space-y-2">
+            <legend className="field-label">Onde você quer comprar?</legend>
+            {stores.map((store) => (
+              <label key={store} className="flex items-center gap-2 text-sm">
+                <input type="radio" name="store" value={store} required /> {STORES[store].label}
+              </label>
+            ))}
+          </fieldset>
+        )}
         <GuestFields />
         <button className="btn-primary" type="submit">{busy ? "Reservando…" : "Reservar presente"}</button>
       </fieldset>

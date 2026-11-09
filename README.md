@@ -33,14 +33,14 @@ npm run dev
 
 ## Funcionalidades
 
-- Cadastro, edição e arquivamento de presentes, com foto por URL HTTPS, categoria, descrição, valor-alvo, cota sugerida e link da Shopee.
+- Cadastro, edição e arquivamento de presentes, com foto por URL HTTPS, categoria, descrição, valor-alvo, cota sugerida e links opcionais para Shopee, Mercado Livre e o site da loja.
 - Pix para cotas ou doações livres. Cada contribuição gera um QR Code estático individual do Asaas com valor fixo, validade de 30 minutos e uso único.
 - Cartão para cotas ou doações livres em checkout hospedado pelo Asaas. O valor mínimo é R$ 20, tanto à vista quanto em até duas parcelas.
 - Confirmação pelo webhook, com token e consulta autenticada ao Asaas. O valor, o identificador do QR e o status recebido são conferidos antes de contabilizar.
 - Identificador único da contribuição para repetir uma requisição sem criar outro QR Code. Recebimentos repetidos são atualizados no mesmo registro.
 - Cotas pendentes bloqueiam o valor reservado. Após o vencimento e uma margem de dois minutos, o servidor consulta o Asaas antes de liberar o saldo para outro convidado.
-- Reservas da Shopee com prazo de 24 horas. O convidado recebe um link privado para avisar que comprou ou cancelar a reserva. A organização confirma o recebimento do presente pelo painel.
-- Cada reserva da Shopee ocupa uma unidade. As cotas via Pix e cartão usam o mesmo saldo e a lista só aceita uma nova reserva quando há saldo para uma unidade inteira.
+- Reservas em lojas externas com prazo de 24 horas. O convidado escolhe a loja e recebe um link privado para avisar que comprou ou cancelar a reserva. A organização confirma o recebimento do presente pelo painel.
+- Cada reserva ocupa uma unidade, independentemente da loja escolhida. As cotas via Pix e cartão usam o mesmo saldo e a lista só aceita uma nova reserva quando há saldo para uma unidade inteira.
 - A aba **Recados** do painel reúne as mensagens das contribuições e reservas.
 - Login do painel com cookie HttpOnly, expiração e limitação de tentativas. O painel mostra Pix, doações lançadas manualmente e reservas separadamente, com exportação CSV.
 - Estornos totais atualizam o recebimento. Valores divergentes, pagamentos conflitantes e estornos parciais são sinalizados para revisão no Asaas.

@@ -55,7 +55,7 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-terracotta-700">Sugestões para a cozinha nova</p>
             <h2 className="text-3xl font-serif font-bold text-sage-900 mt-1">Lista de presentes</h2>
-            <p className="text-sm text-sage-700 mt-2">Contribua com Pix{cardEnabled && " ou cartão"} ou reserve um item por 24 horas para comprar na Shopee.</p>
+            <p className="text-sm text-sage-700 mt-2">Contribua com Pix{cardEnabled && " ou cartão"} ou reserve um item por 24 horas para comprar em uma das lojas indicadas.</p>
           </div>
           {gifts.length > 0 && (
             <div className="flex gap-2 flex-wrap">

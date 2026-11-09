@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS gifts (
 );
 
 ALTER TABLE gifts ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0);
+ALTER TABLE gifts ADD COLUMN IF NOT EXISTS mercado_livre_url TEXT;
+ALTER TABLE gifts ADD COLUMN IF NOT EXISTS website_url TEXT;
 
 CREATE TABLE IF NOT EXISTS pix (
   id TEXT PRIMARY KEY,
@@ -53,6 +55,8 @@ CREATE TABLE IF NOT EXISTS reservations (
 );
 
 CREATE INDEX IF NOT EXISTS reservations_gift ON reservations (environment, gift_id, status);
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS store TEXT NOT NULL DEFAULT 'shopee'
+  CHECK (store IN ('shopee', 'mercado-livre', 'website'));
 
 CREATE TABLE IF NOT EXISTS admin_sessions (
   token_hash TEXT PRIMARY KEY,

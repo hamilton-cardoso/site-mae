@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Download, Gift as GiftIcon, Lock, LogOut, Plus } from "lucide-react";
 import { api, errorText } from "@/data/client";
-import { brl, CATEGORIES, formatDate, parseAmount, type AdminPayment, type AdminReservation, type Gift } from "@/data/gifts";
+import { brl, CATEGORIES, formatDate, parseAmount, STORES, type AdminPayment, type AdminReservation, type Gift } from "@/data/gifts";
 
 const paymentLabels = {
   creating: "Preparando pagamento", pending: "Aguardando pagamento", received: "Recebido",
@@ -69,6 +69,7 @@ function GiftEditor({ gift, onSaved, onCancel }: { gift?: Gift; onSaved: () => v
       await api("/api/admin", "POST", {
         action: "saveGift", id: gift?.id, name: fields.get("name"), category: fields.get("category"),
         description: fields.get("description"), imageUrl: fields.get("imageUrl"), storeUrl: fields.get("storeUrl"),
+        mercadoLivreUrl: fields.get("mercadoLivreUrl"), websiteUrl: fields.get("websiteUrl"),
         priceCents: parseAmount(String(fields.get("price") || "")),
         quantity: Number(fields.get("quantity")),
         quotaCents: quota ? parseAmount(quota) : null, pixEnabled,
@@ -91,6 +92,8 @@ function GiftEditor({ gift, onSaved, onCancel }: { gift?: Gift; onSaved: () => v
         <label className="field-label sm:col-span-2">Descrição<textarea className="field" name="description" rows={2} maxLength={600} defaultValue={gift?.description} /></label>
         <label className="field-label">Link da foto (opcional)<input className="field" name="imageUrl" type="url" maxLength={2048} defaultValue={gift?.imageUrl ?? ""} /></label>
         <label className="field-label">Link da Shopee (opcional)<input className="field" name="storeUrl" type="url" maxLength={2048} defaultValue={gift?.storeUrl ?? ""} /></label>
+        <label className="field-label">Link do Mercado Livre (opcional)<input className="field" name="mercadoLivreUrl" type="url" maxLength={2048} defaultValue={gift?.mercadoLivreUrl ?? ""} /></label>
+        <label className="field-label">Link do site da loja (opcional)<input className="field" name="websiteUrl" type="url" maxLength={2048} defaultValue={gift?.websiteUrl ?? ""} /></label>
         <label className="field-label">Valor por unidade em reais<input className="field" name="price" type="number" required step="0.01" min="0.01" max="10000" defaultValue={gift ? gift.priceCents / 100 : undefined} /></label>
         <label className="field-label">Quantidade<input className="field" name="quantity" type="number" required step="1" min="1" max="2147483647" defaultValue={gift?.quantity ?? 1} /></label>
         {pixEnabled && <label className="field-label">Valor sugerido da cota (opcional)<input className="field" name="quota" type="number" step="0.01" min="0.01" max="10000" defaultValue={gift?.quotaCents ? gift.quotaCents / 100 : undefined} /></label>}
@@ -119,7 +122,7 @@ function exportCsv(payments: AdminPayment[], reservations: AdminReservation[]) {
       payment.message, payment.checkoutId || payment.providerPaymentId || "",
     ]),
     ...reservations.map((reservation) => [
-      formatDate(reservation.createdAt), "Shopee", reservationLabels[reservation.status], reservation.guestName,
+      formatDate(reservation.createdAt), STORES[reservation.store].label, reservationLabels[reservation.status], reservation.guestName,
       reservation.giftName, "", reservation.message, "",
     ]),
   ];
@@ -132,7 +135,7 @@ function exportCsv(payments: AdminPayment[], reservations: AdminReservation[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const sections = ["Presentes", "Pagamentos e doações", "Reservas Shopee", "Recados"] as const;
+const sections = ["Presentes", "Pagamentos e doações", "Reservas", "Recados"] as const;
 type Section = typeof sections[number];
 
 function AdminMessages({ payments, reservations }: { payments: AdminPayment[]; reservations: AdminReservation[] }) {
@@ -145,8 +148,8 @@ function AdminMessages({ payments, reservations }: { payments: AdminPayment[]; r
     })),
     ...reservations.map((reservation) => ({
       ...reservation,
-      key: "shopee-" + reservation.id,
-      source: "Shopee",
+      key: "reservation-" + reservation.id,
+      source: STORES[reservation.store].label,
       statusLabel: reservationLabels[reservation.status],
     })),
   ].filter(({ message }) => message.trim()).sort((a, b) => b.createdAt - a.createdAt);
@@ -233,7 +236,7 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
           ["Pix confirmado", brl(pixTotal)],
           ["Cartão aprovado (valor bruto)", brl(cardTotal)],
           ["Doações lançadas à mão", brl(manualTotal)],
-          ["Presentes recebidos pela Shopee", receivedGifts],
+          ["Presentes recebidos de lojas", receivedGifts],
         ].map(([label, value]) => (
           <div key={label} className="bg-white border border-sage-200 rounded-2xl p-4">
             <p className="text-sm text-sage-700">{label}</p><p className="font-serif text-2xl font-bold mt-1">{value}</p>
@@ -305,14 +308,14 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
 
       {section === "Recados" && <AdminMessages payments={payments} reservations={reservations} />}
 
-      {section === "Reservas Shopee" && <div className="space-y-4">
-        <h2 className="font-serif text-2xl font-bold">Reservas da Shopee</h2>
+      {section === "Reservas" && <div className="space-y-4">
+        <h2 className="font-serif text-2xl font-bold">Reservas de presentes</h2>
         {reservations.length === 0 && <p className="text-sm text-sage-700">Nenhuma reserva registrada.</p>}
         {reservations.map((reservation) => (
           <article key={reservation.id} className="bg-white border border-sage-200 rounded-2xl p-4 flex flex-wrap justify-between gap-3">
             <div className="space-y-1">
               <h3 className="font-bold">{reservation.giftName}</h3>
-              <p className="text-sm text-sage-700">{reservation.guestName} · {reservationLabels[reservation.status]}</p>
+              <p className="text-sm text-sage-700">{reservation.guestName} · {STORES[reservation.store].label} · {reservationLabels[reservation.status]}</p>
               {reservation.status === "reserved" && <p className="text-xs">Prazo até {formatDate(reservation.expiresAt)}</p>}
               {reservation.message && <p className="text-sm break-all">{reservation.message}</p>}
             </div>

@@ -147,7 +147,14 @@ async function main() {
     assert.equal((await request("GET", "/api/pix/" + first.id)).result.status, "refunded");
 
     const reservation = { id: randomUUID(), giftId, guestName: "Convidado da Shopee" };
-    await request("POST", "/api/reservas", reservation);
+    const legacyReservation = (await request("POST", "/api/reservas", reservation)).result;
+    assert.equal(legacyReservation.store, "shopee");
+    assert.equal(legacyReservation.storeUrl, giftBody.storeUrl);
+    const mercadoLivreUrl = "https://mercadolivre.com/sec/qa-mercado-livre";
+    const websiteUrl = "https://loja.example/presente?origem=cha";
+    await request("POST", "/api/admin", { ...giftBody, id: giftId, mercadoLivreUrl, websiteUrl }, 200, true);
+    await request("POST", "/api/reservas", { ...reservation, store: "mercado-livre" }, 409);
+    await request("POST", "/api/reservas", { ...reservation, id: randomUUID(), store: "website" }, 409);
     await request("POST", "/api/reservas", reservation);
     await request("POST", "/api/pix", pixRequest(giftId), 409);
     await request("PATCH", "/api/reservas/" + reservation.id, { action: "received" }, 400);
@@ -186,15 +193,25 @@ async function main() {
     assert.deepEqual(contested.sort(), [200, 409]);
 
     await request("POST", "/api/admin", { ...giftBody, quantity: 0 }, 400, true);
-    const twoUnits = { ...giftBody, name: "Lixeira de teste", quantity: 2 };
+    await request("POST", "/api/admin", { ...giftBody, mercadoLivreUrl: "https://mercadolivre.com.br.example/item" }, 400, true);
+    await request("POST", "/api/admin", { ...giftBody, websiteUrl: "http://loja.example/item" }, 400, true);
+    await request("POST", "/api/admin", { ...giftBody, pixEnabled: false, storeUrl: null }, 400, true);
+    const twoUnits = { ...giftBody, name: "Lixeira de teste", quantity: 2, mercadoLivreUrl, websiteUrl };
     const { id: twoUnitGift } = (await request("POST", "/api/admin", twoUnits, 200, true)).result;
-    const claims = Array.from({ length: 3 }, () => ({
-      id: randomUUID(), giftId: twoUnitGift, guestName: "Convidado da Shopee", message: "Recado Shopee QA",
+    assert((await (await fetch(base)).text()).includes("Shopee · Mercado Livre · Site da loja"));
+    const storeUrls = { shopee: giftBody.storeUrl, "mercado-livre": mercadoLivreUrl, website: websiteUrl };
+    const claims = Object.keys(storeUrls).map((store) => ({
+      id: randomUUID(), giftId: twoUnitGift, guestName: "Convidado da lista", message: "Recado da reserva QA", store,
     }));
     const claimStatuses = await Promise.all(claims.map(async (body) => {
       const response = await fetch(base + "/api/reservas", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
+      if (response.ok) {
+        const ticket = await response.json();
+        assert.equal(ticket.store, body.store);
+        assert.equal(ticket.storeUrl, storeUrls[body.store]);
+      }
       return response.status;
     }));
     const accepted = claims.filter((_, index) => claimStatuses[index] === 200);
@@ -208,6 +225,17 @@ async function main() {
     await request("POST", "/api/reservas", { ...claims[0], id: randomUUID() }, 409);
     await request("POST", "/api/pix", pixRequest(twoUnitGift, 501), 409);
     await request("POST", "/api/pix", pixRequest(twoUnitGift, 500));
+
+    const websiteOnly = { ...giftBody, name: "Presente do site da loja", pixEnabled: false, storeUrl: null, websiteUrl };
+    const { id: websiteGift } = (await request("POST", "/api/admin", websiteOnly, 200, true)).result;
+    await request("POST", "/api/admin", { ...websiteOnly, id: websiteGift, websiteUrl: undefined }, 200, true);
+    const websiteReservation = { id: randomUUID(), giftId: websiteGift, guestName: "Convidado do site da loja" };
+    await request("POST", "/api/reservas", { ...websiteReservation, store: "mercado-livre" }, 404);
+    await request("POST", "/api/reservas", { ...websiteReservation, store: "loja-invalida" }, 400);
+    const websiteTicket = (await request("POST", "/api/reservas", { ...websiteReservation, store: "website" })).result;
+    assert.equal(websiteTicket.storeUrl, websiteUrl);
+    const websitePage = await (await fetch(base + "/reserva/" + websiteTicket.id)).text();
+    assert(websitePage.includes("Abrir site da loja") && websitePage.includes(websiteUrl));
 
     const { id: cardGift } = (await request("POST", "/api/admin", { ...giftBody, name: "Presente no cartão", priceCents: 2011 }, 200, true)).result;
     const card = { ...pixRequest(cardGift, 2011), message: "Recado cartão QA" };
@@ -288,10 +316,10 @@ async function main() {
     const panel = await fetch(base + "/painel", { headers: { Cookie: cookie } });
     assert.equal(panel.status, 200);
     const panelPage = await panel.text();
-    assert(panelPage.includes(">Recados</button>") && panelPage.includes("Recado privado QA") && panelPage.includes("Recado Shopee QA"));
+    assert(panelPage.includes(">Recados</button>") && panelPage.includes("Recado privado QA") && panelPage.includes("Recado da reserva QA"));
     assert(panelPage.includes("Cartão aprovado") && panelPage.includes("Recado cartão QA"));
     const loginPage = await (await fetch(base + "/painel")).text();
-    assert(!loginPage.includes("Recado privado QA") && !loginPage.includes("Recado Shopee QA"));
+    assert(!loginPage.includes("Recado privado QA") && !loginPage.includes("Recado da reserva QA"));
     assert.equal((await fetch(base + "/pix/" + first.id)).status, 200);
     assert.equal((await fetch(base + "/reserva/" + reservation.id)).status, 200);
     await request("DELETE", "/api/admin/session", undefined, 200, true);

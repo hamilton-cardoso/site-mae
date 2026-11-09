@@ -16,6 +16,8 @@ export interface GiftInput {
   quotaCents: number | null;
   pixEnabled: boolean;
   storeUrl: string | null;
+  mercadoLivreUrl?: string | null;
+  websiteUrl?: string | null;
   imageUrl: string | null;
 }
 
@@ -23,6 +25,8 @@ export interface Gift extends GiftInput {
   id: string;
   archived: boolean;
   quantity: number;
+  mercadoLivreUrl: string | null;
+  websiteUrl: string | null;
   raisedCents: number;
   pixTargetCents: number;
   availableCents: number;
@@ -52,10 +56,23 @@ export type CardTicket = Omit<PixTicket, "image" | "payload"> & { checkoutUrl?: 
 
 export type ReservationStatus = "reserved" | "purchased" | "received" | "cancelled" | "expired";
 
+export const STORES = {
+  shopee: { label: "Shopee", field: "storeUrl" },
+  "mercado-livre": { label: "Mercado Livre", field: "mercadoLivreUrl" },
+  website: { label: "Site da loja", field: "websiteUrl" },
+} as const;
+
+export type ReservationStore = keyof typeof STORES;
+
+export function giftStores(gift: Gift) {
+  return (Object.keys(STORES) as ReservationStore[]).filter((store) => gift[STORES[store].field]);
+}
+
 export interface ReservationTicket {
   id: string;
   giftName: string;
   storeUrl: string;
+  store: ReservationStore;
   expiresAt: number;
   status: ReservationStatus;
 }

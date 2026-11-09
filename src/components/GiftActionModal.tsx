@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { type Gift, type GiftAction } from "@/data/gifts";
 import { GuestContributionForm, ReserveForm } from "./GuestForms";
 
-const labels = { pix: "Contribuição via Pix", card: "Contribuição com cartão", shop: "Reserva para compra na Shopee" };
+const labels = { pix: "Contribuição via Pix", card: "Contribuição com cartão", shop: "Reserva para compra em loja" };
 
 export function GiftActionModal({ gift, method, onClose }: { gift: Gift; method: GiftAction; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);

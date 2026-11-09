@@ -1,5 +1,5 @@
 import { Coins, CreditCard, Gift as GiftIcon, ShoppingBag } from "lucide-react";
-import { brl, CARD_MIN_CENTS, type Gift, type GiftAction } from "@/data/gifts";
+import { brl, CARD_MIN_CENTS, giftStores, STORES, type Gift, type GiftAction } from "@/data/gifts";
 
 const labels = { available: "Disponível", funded: "Meta atingida", reserved: "Reservado", purchased: "Compra informada", received: "Presente recebido" };
 
@@ -8,6 +8,7 @@ export function GiftCard({ gift, cardEnabled, onSelect }: { gift: Gift; cardEnab
     ? Math.min(100, Math.round(gift.raisedCents / gift.pixTargetCents * 100))
     : 0;
   const available = gift.canPay || gift.canReserve;
+  const stores = giftStores(gift);
   const label = gift.status === "available" && !available ? "Aguardando pagamento" : labels[gift.status];
 
   return (
@@ -29,7 +30,7 @@ export function GiftCard({ gift, cardEnabled, onSelect }: { gift: Gift; cardEnab
             <span className="text-sage-700">{gift.quantity > 1 ? "Valor por unidade" : "Valor estimado"}</span><strong>{brl(gift.priceCents)}</strong>
           </div>
           {gift.quantity > 1 && <p className="text-sm text-sage-700">
-            {gift.storeUrl ? `${gift.availableUnits} de ${gift.quantity} unidades disponíveis para reserva` : `${gift.quantity} unidades na lista`}
+            {stores.length ? `${gift.availableUnits} de ${gift.quantity} unidades disponíveis para reserva` : `${gift.quantity} unidades na lista`}
           </p>}
           {gift.pixEnabled && gift.pixTargetCents > 0 && (
             <div className="space-y-1 text-xs text-sage-700">
@@ -37,6 +38,7 @@ export function GiftCard({ gift, cardEnabled, onSelect }: { gift: Gift; cardEnab
               <p>{brl(gift.raisedCents)} confirmados</p>
             </div>
           )}
+          {gift.canReserve && <p className="text-xs text-sage-700">{stores.map((store) => STORES[store].label).join(" · ")}</p>}
           {available && <div className="flex flex-wrap gap-2">
             {gift.canPay && <button type="button" className="btn-primary" onClick={() => onSelect("pix")}><Coins size={16} /> Contribuir via Pix</button>}
             {gift.canPay && cardEnabled && gift.availableCents >= CARD_MIN_CENTS && <button type="button" className="btn-secondary" onClick={() => onSelect("card")}><CreditCard size={16} /> Cartão de crédito</button>}

@@ -10,8 +10,12 @@ export async function POST(request: Request) {
     const reservationId = id(body.id);
     const name = text(body.guestName, 100, true);
     const message = text(body.message, 500);
+    const store = body.store === undefined ? "shopee" : body.store;
+    if (store !== "shopee" && store !== "mercado-livre" && store !== "website") {
+      throw new RequestError(400, "Selecione uma loja válida.");
+    }
     if (!(await consumeLimit("shop-reserve", 60, 60_000))) throw new RequestError(429, "Aguarde um minuto e tente novamente.");
     await reconcileGift(giftId);
-    return reserve(reservationId, giftId, name, message);
+    return reserve(reservationId, giftId, name, message, store);
   });
 }

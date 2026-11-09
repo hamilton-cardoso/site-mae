@@ -60,16 +60,15 @@ export function id(value: unknown) {
   return value;
 }
 
-function httpsUrl(value: unknown, shop = false) {
+function httpsUrl(value: unknown, field: string, domains: string[] = []) {
   const address = text(value, 2048);
   if (!address) return null;
   try {
     const url = new URL(address);
-    const shopee = url.hostname === "shopee.com.br" || url.hostname.endsWith(".shopee.com.br")
-      || url.hostname === "shp.ee" || url.hostname.endsWith(".shp.ee");
-    if (url.protocol === "https:" && !url.username && !url.password && (!shop || shopee)) return url.href;
+    const validDomain = !domains.length || domains.some((domain) => url.hostname === domain || url.hostname.endsWith("." + domain));
+    if (url.protocol === "https:" && !url.username && !url.password && validDomain) return url.href;
   } catch {}
-  throw new RequestError(400, shop ? "Informe um link HTTPS da Shopee." : "Informe um link HTTPS para a foto.");
+  throw new RequestError(400, `Informe um link HTTPS válido para ${field}.`);
 }
 
 export function giftInput(body: Record<string, unknown>): GiftInput {
@@ -86,13 +85,15 @@ export function giftInput(body: Record<string, unknown>): GiftInput {
   if (quotaCents != null && quotaCents > priceCents) {
     throw new RequestError(400, "A cota precisa caber no valor-alvo.");
   }
-  const storeUrl = httpsUrl(body.storeUrl, true);
-  if (!pixEnabled && !storeUrl) throw new RequestError(400, "Ative Pix ou informe um link da Shopee.");
+  const storeUrl = httpsUrl(body.storeUrl, "a Shopee", ["shopee.com.br", "shp.ee"]);
+  const mercadoLivreUrl = body.mercadoLivreUrl === undefined ? undefined
+    : httpsUrl(body.mercadoLivreUrl, "o Mercado Livre", ["mercadolivre.com.br", "mercadolivre.com", "meli.la"]);
+  const websiteUrl = body.websiteUrl === undefined ? undefined : httpsUrl(body.websiteUrl, "o site da loja");
   return {
     name: text(body.name, 100, true),
     category,
     description: text(body.description, 600),
-    priceCents, quantity, pixEnabled, quotaCents, storeUrl,
-    imageUrl: httpsUrl(body.imageUrl),
+    priceCents, quantity, pixEnabled, quotaCents, storeUrl, mercadoLivreUrl, websiteUrl,
+    imageUrl: httpsUrl(body.imageUrl, "a foto"),
   };
 }
