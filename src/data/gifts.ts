@@ -102,7 +102,7 @@ export const EVENT_INFO = {
   title: "Chá de Cozinha da Juscélia",
   subtitle:
     "Cada detalhe da cozinha nova está sendo preparado com muito amor! Escolha um presente, contribua com uma cota ou envie um carinho em dinheiro.",
-  date: "05 de dezembro de 2026 às 15h30",
+  date: "04 de dezembro de 2026 às 18h30",
   location: "IAIE - Rua Robert Campim, 146",
 };
 

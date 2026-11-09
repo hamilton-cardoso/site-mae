@@ -137,7 +137,7 @@ async function main() {
     assert.equal(Number((await row("SELECT sum(amount_cents) AS n FROM pix WHERE status='received'")).n), 1000);
     const publicPage = await (await fetch(base)).text();
     assert(!publicPage.includes("Convidado Privado QA") && !publicPage.includes("Recado privado QA"));
-    assert(publicPage.includes("05 de dezembro de 2026") && publicPage.includes("IAIE - Rua Robert Campim, 146"));
+    assert(publicPage.includes("04 de dezembro de 2026 às 18h30") && publicPage.includes("IAIE - Rua Robert Campim, 146"));
     await request("POST", "/api/admin", { ...giftBody, id: giftId, priceCents: 1500 }, 409, true);
 
     state.payments.pay_fixture.status = "REFUNDED";
