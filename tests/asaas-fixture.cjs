@@ -36,9 +36,18 @@ globalThis.fetch = async function (input, options = {}) {
     return Response.json({ id: body.externalReference });
   }
   if (url.pathname === "/v3/payments") {
-    const key = url.searchParams.has("checkoutSession") ? "checkoutSession" : "pixQrCodeId";
+    if (url.searchParams.has("checkoutSession")) return Response.json({ data: [], hasMore: false });
+    if (url.searchParams.get("billingType") === "CREDIT_CARD") {
+      if (!url.searchParams.has("dateCreated[ge]") || !url.searchParams.has("dateCreated[le]")) {
+        return Response.json({}, { status: 400 });
+      }
+      const charges = Object.values(state.payments).filter((payment) => payment.billingType === "CREDIT_CARD");
+      const offset = Number(url.searchParams.get("offset"));
+      const limit = Number(url.searchParams.get("limit"));
+      return Response.json({ data: charges.slice(offset, offset + limit), hasMore: offset + limit < charges.length });
+    }
     return Response.json({
-      data: Object.values(state.payments).filter((payment) => payment[key] === url.searchParams.get(key)),
+      data: Object.values(state.payments).filter((payment) => payment.pixQrCodeId === url.searchParams.get("pixQrCodeId")),
       hasMore: false,
     });
   }

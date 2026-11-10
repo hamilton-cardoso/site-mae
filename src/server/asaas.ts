@@ -152,15 +152,32 @@ export function cardCheckoutUrl(id: string) {
   return "https://" + host + "/checkoutSession/show?id=" + encodeURIComponent(id);
 }
 
-export async function findCheckoutPayments(id: string) {
-  const result = await asaas<{ data: AsaasPayment[]; hasMore: boolean }>(
-    "/payments?checkoutSession=" + encodeURIComponent(id) + "&limit=10",
-  );
-  if (!Array.isArray(result.data) || result.hasMore || result.data.some((payment) =>
-    payment.checkoutSession !== id || payment.billingType !== "CREDIT_CARD" ||
-    !Number.isFinite(payment.value) || payment.value <= 0
-  )) {
-    throw new RequestError(503, "O Asaas retornou cobranças incompatíveis com o checkout.");
+export async function findCheckoutPayments(id: string, createdAt: number, expiresAt: number) {
+  const day = 86_400_000;
+  const date = (timestamp: number) => new Date(timestamp).toISOString().slice(0, 10);
+  // Asaas can omit confirmed installments when the checkoutSession query filter is used.
+  // Look up card charges around checkout creation and match the returned session ID exactly.
+  const query = new URLSearchParams({
+    billingType: "CREDIT_CARD",
+    "dateCreated[ge]": date(createdAt - day),
+    "dateCreated[le]": date(expiresAt + day),
+    limit: "100",
+  });
+  const payments: AsaasPayment[] = [];
+  let offset = 0;
+  for (let page = 0; page < 3; page++) {
+    query.set("offset", String(offset));
+    const result = await asaas<{ data: AsaasPayment[]; hasMore: boolean }>("/payments?" + query);
+    if (!Array.isArray(result.data) || typeof result.hasMore !== "boolean" || (result.hasMore && !result.data.length)) break;
+    for (const payment of result.data) {
+      if (payment.checkoutSession !== id) continue;
+      if (payment.billingType !== "CREDIT_CARD" || !Number.isFinite(payment.value) || payment.value <= 0) {
+        throw new RequestError(503, "O Asaas retornou cobranças incompatíveis com o checkout.");
+      }
+      payments.push(payment);
+    }
+    if (!result.hasMore) return payments;
+    offset += result.data.length;
   }
-  return result.data;
+  throw new RequestError(503, "Não foi possível conferir todas as cobranças do checkout no Asaas.");
 }

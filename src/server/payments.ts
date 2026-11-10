@@ -16,6 +16,7 @@ interface PixRow {
   message: string;
   amount_cents: number;
   status: PixStatus;
+  created_at: number;
   expires_at: number;
   qr_id: string | null;
   qr_image: string | null;
@@ -278,7 +279,7 @@ async function syncCard(prior: PixRow, { checkout, refund }: CardSyncSignal = {}
     if (!row?.checkout_id || row.status === "refunded") return row ?? prior;
 
     // Read the current set of installments under the lock so older events cannot overwrite newer results.
-    const payments = await findCheckoutPayments(row.checkout_id);
+    const payments = await findCheckoutPayments(row.checkout_id, row.created_at, row.expires_at);
     if (refund) {
       const charge = payments.find((payment) => payment.id === refund.paymentId);
       const partialRefunded = refund.partial && (charge?.status === "PARTIALLY_REFUNDED" ||

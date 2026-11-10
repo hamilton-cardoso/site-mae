@@ -255,12 +255,21 @@ async function main() {
     );
     const checkoutEvent = { checkout: { id: card.id, status: "PAID" } };
     await request("POST", "/api/webhooks/asaas", { event: "CHECKOUT_PAID", ...checkoutEvent }, 401);
+    const unrelatedCheckout = randomUUID();
+    for (let index = 0; index < 100; index++) {
+      const id = "pay_other_" + index;
+      state.payments[id] = { id, checkoutSession: unrelatedCheckout, billingType: "CREDIT_CARD", status: "CONFIRMED", value: 20.11 };
+    }
+    saveState();
     await cardWebhook("CHECKOUT_PAID", checkoutEvent, 503);
     state.payments.pay_card1 = { id: "pay_card1", checkoutSession: card.id, billingType: "CREDIT_CARD", status: "CONFIRMED", value: 10.05 };
     saveState();
     await cardWebhook("CHECKOUT_PAID", checkoutEvent, 503);
     state.payments.pay_card2 = { ...state.payments.pay_card1, id: "pay_card2", value: 10.06 };
     saveState();
+    await database.query("UPDATE pix SET status='expired', expires_at=$1 WHERE id=$2", [Date.now() - 180_000, card.id]);
+    await request("POST", "/api/admin", { action: "reconcilePayment", id: card.id }, 200, true);
+    assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "received");
     await cardWebhook("CHECKOUT_PAID", checkoutEvent);
     await cardWebhook("CHECKOUT_PAID", checkoutEvent);
     assert.equal((await request("GET", "/api/cartao/" + card.id)).result.status, "received");
