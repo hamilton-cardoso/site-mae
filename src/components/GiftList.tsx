@@ -13,6 +13,7 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
   const [category, setCategory] = useState<GiftCategory | "Todos">("Todos");
   const [status, setStatus] = useState("Todos");
   const [query, setQuery] = useState("");
+  const [priceOrder, setPriceOrder] = useState("");
   const [selection, setSelection] = useState<{ gift: Gift; method: GiftAction } | null>(null);
 
   useEffect(() => {
@@ -29,6 +30,9 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
       (status === "Concluídos" && ["funded", "purchased", "received"].includes(gift.status))) &&
     (gift.name + " " + gift.description).toLowerCase().includes(query.trim().toLowerCase())
   ));
+  if (priceOrder) {
+    filtered.sort((a, b) => priceOrder === "asc" ? a.priceCents - b.priceCents : b.priceCents - a.priceCents);
+  }
 
   return (
     <div className="space-y-14">
@@ -65,6 +69,11 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
               </label>
               <select className="field w-auto" aria-label="Disponibilidade" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option>Todos</option><option>Disponíveis</option><option>Concluídos</option>
+              </select>
+              <select className="field w-auto" aria-label="Ordenar por valor" value={priceOrder} onChange={(e) => setPriceOrder(e.target.value)}>
+                <option value="">Ordenar por valor</option>
+                <option value="asc">Menor valor primeiro</option>
+                <option value="desc">Maior valor primeiro</option>
               </select>
             </div>
           )}
