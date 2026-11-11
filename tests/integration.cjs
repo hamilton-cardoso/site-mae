@@ -325,7 +325,22 @@ async function main() {
     const panel = await fetch(base + "/painel", { headers: { Cookie: cookie } });
     assert.equal(panel.status, 200);
     const panelPage = await panel.text();
-    assert(panelPage.includes(">Recados</button>") && panelPage.includes("Recado privado QA") && panelPage.includes("Recado da reserva QA"));
+    const totals = await row(`
+      SELECT (SELECT count(*)::int FROM gifts) AS gifts,
+        (SELECT count(*)::int FROM pix WHERE environment = 'sandbox') AS payments,
+        (SELECT count(*)::int FROM reservations WHERE environment = 'sandbox') AS reservations,
+        (SELECT count(*)::int FROM pix WHERE environment = 'sandbox' AND btrim(message) <> '') +
+        (SELECT count(*)::int FROM reservations WHERE environment = 'sandbox' AND btrim(message) <> '') AS messages
+    `);
+    for (const [label, total] of [
+      ["Presentes", totals.gifts],
+      ["Pagamentos e doações", totals.payments],
+      ["Reservas", totals.reservations],
+      ["Recados", totals.messages],
+    ]) {
+      assert(panelPage.includes(`aria-label="${label}, ${total} ${total === 1 ? "registro" : "registros"}"`));
+    }
+    assert(panelPage.includes("Recado privado QA") && panelPage.includes("Recado da reserva QA"));
     assert(panelPage.includes("Cartão aprovado") && panelPage.includes("Recado cartão QA"));
     const loginPage = await (await fetch(base + "/painel")).text();
     assert(!loginPage.includes("Recado privado QA") && !loginPage.includes("Recado da reserva QA"));

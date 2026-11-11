@@ -152,7 +152,7 @@ function AdminMessages({ payments, reservations }: { payments: AdminPayment[]; r
       source: STORES[reservation.store].label,
       statusLabel: reservationLabels[reservation.status],
     })),
-  ].filter(({ message }) => message.trim()).sort((a, b) => b.createdAt - a.createdAt);
+  ].sort((a, b) => b.createdAt - a.createdAt);
 
   return (
     <div className="space-y-4">
@@ -183,6 +183,14 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
   const [filter, setFilter] = useState("");
   const [manual, setManual] = useState(false);
 
+  const paymentMessages = payments.filter(({ message }) => message.trim());
+  const reservationMessages = reservations.filter(({ message }) => message.trim());
+  const sectionCounts: Record<Section, number> = {
+    Presentes: gifts.length,
+    "Pagamentos e doações": payments.length,
+    Reservas: reservations.length,
+    Recados: paymentMessages.length + reservationMessages.length,
+  };
   const confirmed = payments.filter((payment) => payment.status === "received");
   const pixTotal = confirmed.filter((payment) => !payment.manual && payment.method === "pix").reduce((total, payment) => total + payment.amountCents, 0);
   const cardTotal = confirmed.filter((payment) => payment.method === "card").reduce((total, payment) => total + payment.amountCents, 0);
@@ -244,12 +252,20 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
         ))}
       </div>
       <nav className="flex flex-wrap gap-2 border-b border-sage-200 pb-3" aria-label="Seções do painel">
-        {sections.map((label) => (
-          <button key={label} aria-pressed={section === label} className={section === label ? "btn-primary" : "btn-secondary"}
-            onClick={() => { setSection(label); setError(""); setFilter(""); }}>
-            {label}
-          </button>
-        ))}
+        {sections.map((label) => {
+          const count = sectionCounts[label];
+          const selected = section === label;
+          return (
+            <button key={label} aria-pressed={selected} className={selected ? "btn-primary" : "btn-secondary"}
+              aria-label={`${label}, ${count} ${count === 1 ? "registro" : "registros"}`}
+              onClick={() => { setSection(label); setError(""); setFilter(""); }}>
+              {label}
+              <span className={`min-w-6 rounded-full px-2 py-0.5 text-xs tabular-nums ${selected ? "bg-white/20" : "bg-sage-100 text-sage-800"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </nav>
       {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
 
@@ -306,7 +322,7 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
         ))}
       </div>}
 
-      {section === "Recados" && <AdminMessages payments={payments} reservations={reservations} />}
+      {section === "Recados" && <AdminMessages payments={paymentMessages} reservations={reservationMessages} />}
 
       {section === "Reservas" && <div className="space-y-4">
         <h2 className="font-serif text-2xl font-bold">Reservas de presentes</h2>
