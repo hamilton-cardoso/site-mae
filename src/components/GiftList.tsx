@@ -2,11 +2,13 @@
 
 import { Calendar, Gift as GiftIcon, MapPin, Search, Sparkles, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, EVENT_INFO, RESERVATION_HOURS, type Gift, type GiftAction, type GiftCategory } from "@/data/gifts";
 import { FreeDonationSection } from "./FreeDonationSection";
 import { GiftActionModal } from "./GiftActionModal";
 import { GiftCard } from "./GiftCard";
+
+const GIFTS_PER_PAGE = 9;
 
 export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandbox: boolean; cardEnabled: boolean }) {
   const router = useRouter();
@@ -14,7 +16,9 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
   const [status, setStatus] = useState("Todos");
   const [query, setQuery] = useState("");
   const [priceOrder, setPriceOrder] = useState("");
+  const [page, setPage] = useState(1);
   const [selection, setSelection] = useState<{ gift: Gift; method: GiftAction } | null>(null);
+  const resultsRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -32,6 +36,16 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
   ));
   if (priceOrder) {
     filtered.sort((a, b) => priceOrder === "asc" ? a.priceCents - b.priceCents : b.priceCents - a.priceCents);
+  }
+  const pageCount = Math.max(1, Math.ceil(filtered.length / GIFTS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const firstGift = (currentPage - 1) * GIFTS_PER_PAGE;
+  const visibleGifts = filtered.slice(firstGift, firstGift + GIFTS_PER_PAGE);
+
+  function goToPage(nextPage: number) {
+    setPage(nextPage);
+    resultsRef.current?.focus({ preventScroll: true });
+    resultsRef.current?.scrollIntoView({ block: "start" });
   }
 
   return (
@@ -65,12 +79,12 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
             <div className="flex gap-2 flex-wrap">
               <label className="relative">
                 <Search className="absolute left-3 top-3.5 w-4 h-4 text-sage-600" />
-                <input className="field pl-9" aria-label="Buscar presente" placeholder="Buscar presente" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input className="field pl-9" aria-label="Buscar presente" placeholder="Buscar presente" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
               </label>
-              <select className="field w-auto" aria-label="Disponibilidade" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select className="field w-auto" aria-label="Disponibilidade" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
                 <option>Todos</option><option>Disponíveis</option><option>Concluídos</option>
               </select>
-              <select className="field w-auto" aria-label="Ordenar por valor" value={priceOrder} onChange={(e) => setPriceOrder(e.target.value)}>
+              <select className="field w-auto" aria-label="Ordenar por valor" value={priceOrder} onChange={(e) => { setPriceOrder(e.target.value); setPage(1); }}>
                 <option value="">Ordenar por valor</option>
                 <option value="asc">Menor valor primeiro</option>
                 <option value="desc">Maior valor primeiro</option>
@@ -81,7 +95,7 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
         {gifts.length > 0 && (
           <div className="flex flex-wrap gap-2" aria-label="Categorias">
             {(["Todos", ...CATEGORIES] as const).map((option) => (
-              <button key={option} type="button" aria-pressed={category === option} onClick={() => setCategory(option)}
+              <button key={option} type="button" aria-pressed={category === option} onClick={() => { setCategory(option); setPage(1); }}
                 className={"rounded-full px-4 py-2 text-xs font-semibold border " + (category === option ? "bg-sage-800 text-white" : "bg-white border-sage-200")}>
                 {option}
               </button>
@@ -89,9 +103,27 @@ export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandb
           </div>
         )}
         {filtered.length ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((gift) => <GiftCard key={gift.id} gift={gift} cardEnabled={cardEnabled} onSelect={(method) => setSelection({ gift, method })} />)}
-          </div>
+          <>
+            {pageCount > 1 && (
+              <p ref={resultsRef} tabIndex={-1} aria-live="polite" className="scroll-mt-24 text-sm text-sage-700">
+                Mostrando {firstGift + 1} a {firstGift + visibleGifts.length} de {filtered.length} presentes
+              </p>
+            )}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {visibleGifts.map((gift) => <GiftCard key={gift.id} gift={gift} cardEnabled={cardEnabled} onSelect={(method) => setSelection({ gift, method })} />)}
+            </div>
+            {pageCount > 1 && (
+              <nav aria-label="Paginação da lista de presentes" className="flex flex-wrap items-center justify-center gap-3">
+                <button type="button" className="btn-secondary" disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)}>
+                  Anterior
+                </button>
+                <span className="text-sm text-sage-700">Página {currentPage} de {pageCount}</span>
+                <button type="button" className="btn-secondary" disabled={currentPage === pageCount} onClick={() => goToPage(currentPage + 1)}>
+                  Próxima
+                </button>
+              </nav>
+            )}
+          </>
         ) : (
           <div className="rounded-3xl border border-sage-200 bg-white p-10 text-center">
             <GiftIcon className="mx-auto mb-3 text-sage-500" />
