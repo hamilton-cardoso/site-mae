@@ -8,7 +8,7 @@ import { FreeDonationSection } from "./FreeDonationSection";
 import { GiftActionModal } from "./GiftActionModal";
 import { GiftCard } from "./GiftCard";
 
-const GIFTS_PER_PAGE = 9;
+const GIFTS_PER_PAGE = 15;
 
 export function GiftList({ gifts, sandbox, cardEnabled }: { gifts: Gift[]; sandbox: boolean; cardEnabled: boolean }) {
   const router = useRouter();
