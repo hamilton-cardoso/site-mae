@@ -56,6 +56,8 @@ export type CardTicket = Omit<PixTicket, "image" | "payload"> & { checkoutUrl?: 
 
 export type ReservationStatus = "reserved" | "purchased" | "received" | "cancelled" | "expired";
 
+export const RESERVATION_HOURS = 48;
+
 export const STORES = {
   shopee: { label: "Shopee", field: "storeUrl" },
   "mercado-livre": { label: "Mercado Livre", field: "mercadoLivreUrl" },

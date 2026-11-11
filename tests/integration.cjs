@@ -150,6 +150,8 @@ async function main() {
     const legacyReservation = (await request("POST", "/api/reservas", reservation)).result;
     assert.equal(legacyReservation.store, "shopee");
     assert.equal(legacyReservation.storeUrl, giftBody.storeUrl);
+    const { created_at: reservationCreatedAt } = await row("SELECT created_at FROM reservations WHERE id=$1", [reservation.id]);
+    assert.equal(legacyReservation.expiresAt - Number(reservationCreatedAt), 48 * 60 * 60_000);
     const mercadoLivreUrl = "https://mercadolivre.com/sec/qa-mercado-livre";
     const websiteUrl = "https://loja.example/presente?origem=cha";
     await request("POST", "/api/admin", { ...giftBody, id: giftId, mercadoLivreUrl, websiteUrl }, 200, true);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { brl, CARD_MIN_CENTS, formatDate, giftStores, parseAmount, STORES, type CardTicket, type Gift, type PaymentMethod, type PixTicket, type ReservationTicket } from "@/data/gifts";
+import { brl, CARD_MIN_CENTS, formatDate, giftStores, parseAmount, RESERVATION_HOURS, STORES, type CardTicket, type Gift, type PaymentMethod, type PixTicket, type ReservationTicket } from "@/data/gifts";
 import { api, errorText } from "@/data/client";
 
 function GuestFields() {
@@ -279,7 +279,7 @@ export function ReserveForm({ gift }: { gift: Gift }) {
   if (reservation) return <ReservationView initial={reservation} />;
   return (
     <form className="space-y-3" onSubmit={submit} onChange={() => { if (!busy) requestId.current = null; }}>
-      <p className="text-sm text-sage-700">A reserva separa uma unidade para você por 24 horas.</p>
+      <p className="text-sm text-sage-700">A reserva separa uma unidade para você por {RESERVATION_HOURS} horas.</p>
       <fieldset className="space-y-3" disabled={busy}>
         {stores.length === 1 ? (
           <>

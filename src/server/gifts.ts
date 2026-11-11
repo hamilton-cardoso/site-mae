@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { AdminPayment, AdminReservation, Gift, GiftInput, ReservationStatus, ReservationStore, ReservationTicket } from "@/data/gifts";
+import { RESERVATION_HOURS } from "@/data/gifts";
 import { asaasEnvironment } from "./asaas";
 import { db, transaction } from "./db";
 import { RequestError } from "./http";
 
 export const QR_GRACE_MS = 120_000;
-const RESERVATION_MS = 24 * 60 * 60_000;
+const RESERVATION_MS = RESERVATION_HOURS * 60 * 60_000;
 
 type GiftRow = Pick<Gift, "id" | "name" | "category" | "description"> & {
   price_cents: number;
