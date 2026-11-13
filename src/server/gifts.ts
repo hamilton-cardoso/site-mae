@@ -221,15 +221,23 @@ export function updateReservation(id: string, action: "purchased" | "received" |
   return transaction(async (client) => {
     const prior = await findReservation(id, client);
     if (!prior) throw new RequestError(404, "Reserva não encontrada.");
-    await lockGift(client, prior.gift_id);
+    const gift = await lockGift(client, prior.gift_id);
+    if (!gift) throw new RequestError(404, "Presente não encontrado.");
     const row = await findReservation(id, client);
     if (!row) throw new RequestError(404, "Reserva não encontrada.");
     const current = toTicket(row);
     if (current.status === action) return current;
+    const confirmExpired = admin && action === "purchased" && current.status === "expired";
     const allowed = action === "received"
       ? admin && current.status === "purchased"
-      : current.status === "reserved" || (admin && action === "cancelled" && current.status === "purchased");
+      : current.status === "reserved" || confirmExpired || (admin && action === "cancelled" && current.status === "purchased");
     if (!allowed) throw new RequestError(409, "A reserva já expirou ou mudou de estado.");
+    if (confirmExpired) {
+      const { availableCents } = availableCapacity(gift, await allocation(client, gift.id));
+      if (availableCents < gift.price_cents) {
+        throw new RequestError(409, "Não há uma unidade livre para registrar esta compra. Confira as outras reservas e contribuições deste presente.");
+      }
+    }
     await client.query("UPDATE reservations SET status = $1 WHERE id = $2", [action, id]);
     return { ...current, status: action };
   });

@@ -336,6 +336,8 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
               {reservation.message && <p className="text-sm break-all">{reservation.message}</p>}
             </div>
             <div className="flex flex-wrap items-start gap-2">
+              {reservation.status === "expired" && <button className="btn-primary" disabled={busy}
+                onClick={() => action({ action: "confirmReservationPurchase", id: reservation.id })}>Marcar como comprado</button>}
               {reservation.status === "purchased" && <button className="btn-primary" disabled={busy}
                 onClick={() => action({ action: "receiveGift", id: reservation.id })}>Marcar como recebido</button>}
               {["reserved", "purchased"].includes(reservation.status) && <button className="btn-secondary" disabled={busy}

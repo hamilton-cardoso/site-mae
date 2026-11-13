@@ -18,6 +18,9 @@ export async function POST(request: Request) {
         if (typeof body.archived !== "boolean") throw new RequestError(400, "Estado inválido.");
         await archiveGift(id(body.id), body.archived);
         break;
+      case "confirmReservationPurchase":
+        await updateReservation(id(body.id), "purchased", true);
+        break;
       case "receiveGift":
         await updateReservation(id(body.id), "received", true);
         break;
