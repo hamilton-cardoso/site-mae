@@ -169,9 +169,17 @@ async function main() {
     await request("POST", "/api/admin", confirmPurchase, 409, true);
     assert.equal((await row("SELECT status FROM reservations WHERE id=$1", [replacement.id])).status, "reserved");
     await request("PATCH", "/api/reservas/" + replacement.id, { action: "cancelled" });
+    const confirmCancelled = { action: "confirmReservationPurchase", id: replacement.id };
+    await request("PATCH", "/api/reservas/" + replacement.id, { action: "purchased" }, 409);
+    await request("POST", "/api/admin", confirmCancelled, 401);
+    await request("POST", "/api/admin", confirmCancelled, 200, true);
+    assert.equal((await row("SELECT status FROM reservations WHERE id=$1", [replacement.id])).status, "purchased");
+    await request("POST", "/api/admin", { action: "cancelReservation", id: replacement.id }, 200, true);
     await request("POST", "/api/admin", confirmPurchase, 200, true);
     await request("POST", "/api/admin", confirmPurchase, 200, true);
     assert.equal((await row("SELECT status FROM reservations WHERE id=$1", [reservation.id])).status, "purchased");
+    await request("POST", "/api/admin", confirmCancelled, 409, true);
+    assert.equal((await row("SELECT status FROM reservations WHERE id=$1", [replacement.id])).status, "cancelled");
     await request("POST", "/api/reservas", { ...replacement, id: randomUUID() }, 409);
     await request("PATCH", "/api/reservas/" + reservation.id, { action: "cancelled" }, 409);
     await request("POST", "/api/admin", { action: "receiveGift", id: reservation.id }, 200, true);

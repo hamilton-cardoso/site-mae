@@ -227,12 +227,12 @@ export function updateReservation(id: string, action: "purchased" | "received" |
     if (!row) throw new RequestError(404, "Reserva não encontrada.");
     const current = toTicket(row);
     if (current.status === action) return current;
-    const confirmExpired = admin && action === "purchased" && current.status === "expired";
+    const restorePurchase = admin && action === "purchased" && (current.status === "expired" || current.status === "cancelled");
     const allowed = action === "received"
       ? admin && current.status === "purchased"
-      : current.status === "reserved" || confirmExpired || (admin && action === "cancelled" && current.status === "purchased");
+      : current.status === "reserved" || restorePurchase || (admin && action === "cancelled" && current.status === "purchased");
     if (!allowed) throw new RequestError(409, "A reserva já expirou ou mudou de estado.");
-    if (confirmExpired) {
+    if (restorePurchase) {
       const { availableCents } = availableCapacity(gift, await allocation(client, gift.id));
       if (availableCents < gift.price_cents) {
         throw new RequestError(409, "Não há uma unidade livre para registrar esta compra. Confira as outras reservas e contribuições deste presente.");
