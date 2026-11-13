@@ -20,6 +20,9 @@ const reservationLabels = {
   reserved: "Reservado", purchased: "Compra informada", received: "Presente recebido",
   cancelled: "Cancelada", expired: "Expirada",
 };
+const reservationFilters = { all: "Todas", ...reservationLabels };
+type ReservationFilter = keyof typeof reservationFilters;
+const reservationFilterOptions = Object.keys(reservationFilters) as ReservationFilter[];
 
 export function AdminLogin() {
   const router = useRouter();
@@ -181,8 +184,18 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
+  const [reservationFilter, setReservationFilter] = useState<ReservationFilter>("all");
   const [manual, setManual] = useState(false);
 
+  const reservationCounts: Record<ReservationFilter, number> = {
+    all: reservations.length, reserved: 0, purchased: 0, received: 0, cancelled: 0, expired: 0,
+  };
+  for (const reservation of reservations) {
+    reservationCounts[reservation.status]++;
+  }
+  const visibleReservations = reservationFilter === "all"
+    ? reservations
+    : reservations.filter((reservation) => reservation.status === reservationFilter);
   const paymentMessages = payments.filter(({ message }) => message.trim());
   const reservationMessages = reservations.filter(({ message }) => message.trim());
   const sectionCounts: Record<Section, number> = {
@@ -195,7 +208,6 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
   const pixTotal = confirmed.filter((payment) => !payment.manual && payment.method === "pix").reduce((total, payment) => total + payment.amountCents, 0);
   const cardTotal = confirmed.filter((payment) => payment.method === "card").reduce((total, payment) => total + payment.amountCents, 0);
   const manualTotal = confirmed.filter((payment) => payment.manual).reduce((total, payment) => total + payment.amountCents, 0);
-  const receivedGifts = reservations.filter((reservation) => reservation.status === "received").length;
   const selectedGift = gifts.find((gift) => gift.id === editing);
   const search = filter.trim().toLowerCase();
 
@@ -244,7 +256,7 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
           ["Pix confirmado", brl(pixTotal)],
           ["Cartão aprovado (valor bruto)", brl(cardTotal)],
           ["Doações lançadas à mão", brl(manualTotal)],
-          ["Presentes recebidos de lojas", receivedGifts],
+          ["Presentes recebidos de lojas", reservationCounts.received],
         ].map(([label, value]) => (
           <div key={label} className="bg-white border border-sage-200 rounded-2xl p-4">
             <p className="text-sm text-sage-700">{label}</p><p className="font-serif text-2xl font-bold mt-1">{value}</p>
@@ -326,8 +338,24 @@ export function AdminDashboard({ environment, gifts, payments, reservations }: {
 
       {section === "Reservas" && <div className="space-y-4">
         <h2 className="font-serif text-2xl font-bold">Reservas de presentes</h2>
-        {reservations.length === 0 && <p className="text-sm text-sage-700">Nenhuma reserva registrada.</p>}
-        {reservations.map((reservation) => (
+        <div role="group" aria-label="Filtrar reservas por status" className="flex flex-wrap gap-2">
+          {reservationFilterOptions.map((option) => {
+            const selected = reservationFilter === option;
+            return (
+              <button key={option} type="button" aria-pressed={selected} className={selected ? "btn-primary" : "btn-secondary"}
+                onClick={() => setReservationFilter(option)}>
+                {reservationFilters[option]}
+                <span className={`min-w-6 rounded-full px-2 py-0.5 text-xs tabular-nums ${selected ? "bg-white/20" : "bg-sage-100 text-sage-800"}`}>
+                  {reservationCounts[option]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {visibleReservations.length === 0 && <p className="text-sm text-sage-700">
+          {reservationFilter === "all" ? "Nenhuma reserva registrada." : "Nenhuma reserva com este status."}
+        </p>}
+        {visibleReservations.map((reservation) => (
           <article key={reservation.id} className="bg-white border border-sage-200 rounded-2xl p-4 flex flex-wrap justify-between gap-3">
             <div className="space-y-1">
               <h3 className="font-bold">{reservation.giftName}</h3>
